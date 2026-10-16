@@ -1,0 +1,23 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# New → Blueprint → pick this repo. Render prompts for the `sync: false` values.
+services:
+  - type: web
+    name: kickdrop
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Read at build time (it's baked into the browser bundle) — redeploy after changing it.
+      - key: NEXT_PUBLIC_SPOTIFY_CLIENT_ID
+        sync: false
+      - key: STRAVA_CLIENT_ID
+        sync: false
+      - key: STRAVA_CLIENT_SECRET
+        sync: false
+      # Optional: set if you add a custom domain. Defaults to Render's onrender.com URL.
+      - key: APP_URL
+        sync: false

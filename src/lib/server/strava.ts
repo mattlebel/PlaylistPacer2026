@@ -11,8 +11,10 @@ const API = process.env.STRAVA_API_BASE ?? "https://www.strava.com/api/v3";
 
 export const stravaConfigured = () => !!(process.env.STRAVA_CLIENT_ID && process.env.STRAVA_CLIENT_SECRET);
 
+/** Public origin for OAuth redirects. Behind a proxy (Render), the request origin is the internal port. */
 export function appOrigin(req: NextRequest) {
-  return process.env.APP_URL?.replace(/\/$/, "") ?? req.nextUrl.origin;
+  const configured = process.env.APP_URL ?? process.env.RENDER_EXTERNAL_URL;
+  return configured?.replace(/\/$/, "") ?? req.nextUrl.origin;
 }
 
 export interface StravaSession {

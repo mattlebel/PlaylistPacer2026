@@ -35,6 +35,22 @@ npm run dev
 
 Open **http://127.0.0.1:3000** (use 127.0.0.1, not localhost, for Spotify OAuth).
 
+## Deploy on Render
+
+`render.yaml` is a Render Blueprint for one Node web service (free plan).
+
+1. In Render: **New → Blueprint**, connect GitHub, and pick this repo. Render reads `render.yaml`.
+2. When prompted, fill in the env vars. Any of them can be left blank and the demo still works:
+   - `NEXT_PUBLIC_SPOTIFY_CLIENT_ID`: your Spotify app's client ID
+   - `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET`: your Strava API app
+   - `APP_URL`: only needed with a custom domain
+3. After the first deploy, register your Render URL with each provider:
+   - Spotify dashboard → Redirect URIs: `https://<your-app>.onrender.com/spotify/callback`
+   - Strava API settings → Authorization Callback Domain: `<your-app>.onrender.com`
+4. `NEXT_PUBLIC_SPOTIFY_CLIENT_ID` gets baked in at build time, so trigger a redeploy if you change it.
+
+Free instances sleep after ~15 minutes idle, so the first load after that takes a while to wake up.
+
 ## API reality check (as of late 2026)
 
 - **Spotify**: development-mode apps need the owner to have Premium, are capped at 5 users, and can
