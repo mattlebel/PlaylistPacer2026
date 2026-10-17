@@ -1,5 +1,5 @@
-import { KickdropApp } from "@/components/KickdropApp";
+import { PlaylistPacerApp } from "@/components/PlaylistPacerApp";
 
 export default function Home() {
-  return <KickdropApp />;
+  return <PlaylistPacerApp />;
 }

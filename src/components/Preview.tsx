@@ -177,8 +177,8 @@ export function Preview({ plan, onClose }: { plan: Plan; onClose(): void }) {
             <motion.div
               key={toast.name}
               className="stk absolute left-1/2 top-28 w-[min(92vw,420px)] -translate-x-1/2 bg-sun px-4 py-3 sm:top-32"
-              initial={{ y: -20, opacity: 0, rotate: -3 }}
-              animate={{ y: 0, opacity: 1, rotate: 1 }}
+              initial={{ y: -20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
               exit={{ y: -20, opacity: 0 }}
             >
               <div className="font-display text-lg font-black uppercase">
@@ -191,9 +191,9 @@ export function Preview({ plan, onClose }: { plan: Plan; onClose(): void }) {
 
         {done && (
           <div className="absolute inset-0 grid place-items-center bg-black/50">
-            <div className="stk -rotate-2 bg-hot p-8 text-center">
+            <div className="stk bg-hot p-8 text-center">
               <div className="font-display text-5xl font-black">🏁 FINISHED</div>
-              <p className="mt-2 font-bold">{fmtClock(plan.model.goal, true)} of perfectly timed bangers.</p>
+              <p className="mt-2 font-bold">{fmtClock(plan.model.goal, true)} of music, mile by mile.</p>
               <div className="mt-4 flex justify-center gap-3">
                 <button
                   className="btn bg-paper px-5 py-2 text-xs"
@@ -226,8 +226,8 @@ export function Preview({ plan, onClose }: { plan: Plan; onClose(): void }) {
           <div className="mt-2 flex flex-wrap items-center gap-4">
             <motion.div
               key={seg?.track.key}
-              initial={{ scale: 0.6, rotate: -20 }}
-              animate={{ scale: 1, rotate: 0 }}
+              initial={{ scale: 0.85, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
               className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border-[3px] border-black sm:h-20 sm:w-20"
               style={{ background: seg?.color }}
             >
@@ -239,7 +239,7 @@ export function Preview({ plan, onClose }: { plan: Plan; onClose(): void }) {
               )}
             </motion.div>
             <div className="min-w-0 flex-1">
-              {isKick && <div className="font-display text-xs font-black uppercase text-acid">⚡ THE KICK ⚡</div>}
+              {isKick && <div className="font-display text-xs font-black uppercase text-acid">⚡ The kick</div>}
               <div className="truncate font-display text-xl font-black sm:text-2xl">{seg?.track.title}</div>
               <div className="truncate text-sm text-paper/60">
                 {seg?.track.artist} · <span className="font-mono">{seg?.track.bpm ?? "?"} bpm</span> · song {idx + 1}/{race.length}
@@ -275,7 +275,7 @@ export function Preview({ plan, onClose }: { plan: Plan; onClose(): void }) {
               exit ✕
             </button>
           </div>
-          {!hasSpotify && <p className="mt-2 text-xs text-paper/40">🥁 Sample/CSV songs play a synth beat at each song&apos;s BPM — feel the ramp. Import from Spotify for the real tracks.</p>}
+          {!hasSpotify && <p className="mt-2 text-xs text-paper/40">Sample/CSV songs play a synth beat at each song&apos;s BPM. Import from Spotify to hear the real tracks.</p>}
         </div>
       </div>
     </motion.div>

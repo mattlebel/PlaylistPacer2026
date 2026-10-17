@@ -1,8 +1,8 @@
-# KICKDROP ⚡ time the drop, own the kick
+# Playlist Pacer — time the drop, own the kick
 
 Plan your race playlist on the actual course. Drop in a course and a playlist, set a goal time,
-and KICKDROP paints every song onto the miles it covers. You see what's playing on the Queensboro
-Bridge, you can ramp the BPM from chill to unhinged, and it lands your finishing song on the final stretch.
+and Playlist Pacer paints every song onto the miles it covers. You see what's playing on the Queensboro
+Bridge, you can ramp the BPM from easy to fast, and it lands your finishing song on the final stretch.
 
 Built for road racers, NYRR regulars and the r/runnyc crowd.
 

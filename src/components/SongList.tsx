@@ -85,7 +85,7 @@ function Row({ seg, plan, selected }: { seg: Segment; plan: Plan; selected: bool
       data-key={track.key}
       style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 20 : undefined }}
       className={`group relative flex items-center gap-2 rounded-2xl border-2 bg-ink py-1.5 pl-1.5 pr-2 transition ${
-        isDragging ? "rotate-1 scale-[1.03] border-acid shadow-[6px_6px_0_0_var(--color-hot)]" : selected ? "border-paper" : "border-transparent hover:border-paper/15"
+        isDragging ? "scale-[1.02] border-acid shadow-[4px_4px_0_0_#000]" : selected ? "border-paper" : "border-transparent hover:border-paper/15"
       } ${out ? "opacity-55" : ""}`}
       onClick={() => select(selected ? null : track.key)}
     >

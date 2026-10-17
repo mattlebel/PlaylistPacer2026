@@ -69,18 +69,17 @@ export function CourseModal({
             <button
               key={p.id}
               onClick={() => accept(loadPreset(p.id), p.defaultGoal)}
-              className="stk group relative flex flex-col items-start p-4 text-left transition hover:-translate-y-1 hover:rotate-[-1deg]"
+              className="stk group relative flex flex-col items-start p-4 text-left transition hover:-translate-y-0.5"
               style={{
                 background: ["var(--color-acid)", "var(--color-hot)", "var(--color-ice)"][i % 3],
-                ["--sh" as string]: "var(--color-paper)",
               }}
             >
               {current === p.id && (
-                <span className="absolute -right-2 -top-3 rotate-12 rounded-full border-2 border-black bg-paper px-2 py-0.5 text-[10px] font-black uppercase">
+                <span className="absolute -right-2 -top-3 rounded-full border-2 border-black bg-paper px-2 py-0.5 text-[10px] font-black uppercase">
                   current
                 </span>
               )}
-              <span className="text-4xl transition group-hover:scale-125 group-hover:rotate-12">{p.emoji}</span>
+              <span className="text-4xl">{p.emoji}</span>
               <span className="mt-3 font-display text-lg font-black uppercase leading-tight">{p.name}</span>
               <span className="mt-1 font-mono text-xs font-bold">{p.short}</span>
               <span className="mt-2 text-sm leading-snug">{p.blurb}</span>
@@ -141,7 +140,7 @@ export function GpxDrop({ onCourse }: { onCourse(c: Course): void }) {
           drag ? "scale-[1.02] border-acid bg-acid/10" : "border-paper/25 hover:border-paper/60"
         }`}
       >
-        <span className={`text-5xl ${drag ? "animate-wiggle" : ""}`}>🗺️</span>
+        <span className="text-5xl">🗺️</span>
         <span className="font-display text-lg font-black uppercase">Drop a .gpx here</span>
         <span className="text-sm text-paper/60">or tap to browse. Activity GPX with timestamps unlocks 👻 ghost pacing.</span>
       </button>
@@ -194,7 +193,7 @@ function StravaTab({ onCourse, units }: { onCourse(c: Course): void; units: "mi"
   const parsed = url.match(/(activities|routes)\/(\d+)/);
   const exportUrl = parsed ? `https://www.strava.com/${parsed[1]}/${parsed[2]}/export_gpx` : null;
 
-  if (!status) return <p className="animate-pulse text-paper/60">checking Strava vibes…</p>;
+  if (!status) return <p className="animate-pulse text-paper/60">checking Strava…</p>;
 
   return (
     <div className="space-y-5">
@@ -280,7 +279,7 @@ function StravaTab({ onCourse, units }: { onCourse(c: Course): void; units: "mi"
                 </button>
               </li>
             ))}
-            {!runs.length && <li className="text-paper/60">No runs with GPS yet. Go touch grass (on a run).</li>}
+            {!runs.length && <li className="text-paper/60">No runs with GPS yet.</li>}
           </ul>
         </div>
       )}

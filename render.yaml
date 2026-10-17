@@ -2,7 +2,7 @@
 # New → Blueprint → pick this repo. Render prompts for the `sync: false` values.
 services:
   - type: web
-    name: kickdrop
+    name: playlist-pacer
     runtime: node
     plan: free
     buildCommand: npm ci && npm run build

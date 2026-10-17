@@ -17,7 +17,7 @@ import { Preview } from "./Preview";
 import { ShareModal } from "./ShareCard";
 import { SongList } from "./SongList";
 import { Strip } from "./Strip";
-import { Marquee, Stamp, Toast } from "./ui";
+import { Marquee, Toast } from "./ui";
 
 const TICKER = [
   "Queensboro Bridge is silent. your playlist shouldn't be",
@@ -29,10 +29,9 @@ const TICKER = [
   "negative split or negative vibes",
   "Gu at mile 6, 12, 18. banger at 20",
   "BQ or bust",
-  "corral bangers only",
 ];
 
-export function KickdropApp() {
+export function PlaylistPacerApp() {
   // Plan lives in localStorage, so render it only on the client.
   const mounted = useSyncExternalStore(
     () => () => {},
@@ -80,19 +79,14 @@ export function KickdropApp() {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <Marquee items={TICKER} className="bg-acid text-ink" />
+      <Marquee items={TICKER} className="bg-ink-2 text-acid/80" />
 
       <header className="mx-auto flex w-full max-w-[1500px] flex-wrap items-center gap-3 px-4 py-4 sm:px-6">
-        <Link href="/" className="group mr-auto flex items-center gap-2" aria-label="KICKDROP home">
-          <span className="grid h-11 w-11 place-items-center rounded-2xl border-[3px] border-black bg-hot text-2xl shadow-[3px_3px_0_0_var(--color-acid)] transition group-hover:rotate-12">
-            ⚡
+        <Link href="/" className="mr-auto flex items-center gap-2.5" aria-label="Playlist Pacer home">
+          <span className="grid h-10 w-10 place-items-center rounded-xl border-2 border-black bg-acid text-lg text-ink">▶</span>
+          <span className="font-display text-xl font-black uppercase tracking-tight sm:text-2xl">
+            Playlist <span className="text-acid">Pacer</span>
           </span>
-          <span className="font-display text-2xl font-black tracking-tight sm:text-3xl">
-            KICK<span className="text-acid">DROP</span>
-          </span>
-          <Stamp className="hidden bg-ice sm:inline-block" rotate={6}>
-            beta · built for race day
-          </Stamp>
         </Link>
         {ready && (
           <>
@@ -102,11 +96,11 @@ export function KickdropApp() {
             <button onClick={() => setPlaylistOpen("spotify")} className="chip max-w-56 border-paper/25 py-1.5 text-paper/80 hover:border-hot hover:text-hot">
               🎧 <span className="truncate">{playlistName || "playlist"}</span>
             </button>
-            <button className="btn bg-acid px-5 py-2.5 text-xs" style={{ ["--sh" as string]: "var(--color-hot)" }} onClick={() => setPreviewing(true)}>
+            <button className="btn bg-acid px-5 py-2.5 text-xs" onClick={() => setPreviewing(true)}>
               ▶ Preview course
             </button>
             <button className="btn bg-sun px-5 py-2.5 text-xs" onClick={() => setShareOpen(true)}>
-              ✨ Share
+              Share
             </button>
           </>
         )}
@@ -164,7 +158,7 @@ function PlanView({ plan }: { plan: Plan }) {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_440px]">
         <div className="min-w-0 space-y-6">
-          <section className="panel relative overflow-hidden" style={{ boxShadow: "8px 8px 0 0 var(--color-hot)" }}>
+          <section className="panel relative overflow-hidden">
             <CourseMap plan={plan} selectedKey={selectedKey} onSelect={select} className="relative h-[340px] sm:h-[460px]" />
             <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap gap-2">
               <span className="rounded-full border-2 border-black bg-paper px-3 py-1 font-display text-xs font-black uppercase text-ink shadow-[2px_2px_0_#000]">

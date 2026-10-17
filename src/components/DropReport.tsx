@@ -8,6 +8,7 @@ import { useKD } from "@/lib/store";
 import type { Plan } from "@/lib/usePlan";
 
 const card = "stk relative overflow-hidden p-5";
+const quiet = "panel relative overflow-hidden border-t-4 p-5";
 
 export function DropReport({ plan }: { plan: Plan }) {
   return (
@@ -47,7 +48,7 @@ function KickCard({ plan }: { plan: Plan }) {
   return (
     <motion.div layout className={card} style={{ background: bg, ["--sh" as string]: "var(--color-paper)" }}>
       <Label>⚡ the kick</Label>
-      <motion.p key={headline} initial={{ scale: 1.3, rotate: -4 }} animate={{ scale: 1, rotate: 0 }} className="font-display text-3xl font-black leading-none">
+      <motion.p key={headline} initial={{ scale: 1.15 }} animate={{ scale: 1 }} className="font-display text-3xl font-black leading-none">
         {headline}
       </motion.p>
       <p className="mt-3 truncate text-sm font-bold">“{k.segment.track.title}”</p>
@@ -55,8 +56,8 @@ function KickCard({ plan }: { plan: Plan }) {
         {k.segment.phase === "race"
           ? `drops at ${toUnits(k.segment.startD, u).toFixed(2)} ${u} · target ${toUnits(Math.max(0, plan.course.distance - plan.settings.kickTargetFromEnd), u).toFixed(2)}`
           : k.segment.phase === "post"
-            ? "plays after you finish 💀"
-            : "plays before the start 💀"}
+            ? "plays after you finish"
+            : "plays before the start"}
       </p>
       {k.status !== "perfect" && (
         <div className="mt-3 space-y-2">
@@ -95,13 +96,13 @@ function LengthCard({ plan }: { plan: Plan }) {
   const short = stats.shortBy > 0;
   const spare = stats.totalPlay - plan.settings.startOffsetSec - model.goal;
   return (
-    <div className={card} style={{ background: short ? "var(--color-tang)" : "var(--color-ice)", ["--sh" as string]: "var(--color-paper)" }}>
+    <div className={quiet} style={{ borderTopColor: short ? "var(--color-tang)" : "var(--color-ice)" }}>
       <Label>⏱ playlist length</Label>
-      <p className="font-display text-3xl font-black leading-none">{short ? `${fmtClock(stats.shortBy)} 🔇` : `+${fmtClock(spare)}`}</p>
+      <p className={`font-display text-3xl font-black leading-none ${short ? "text-tang" : "text-ice"}`}>{short ? `${fmtClock(stats.shortBy)} 🔇` : `+${fmtClock(spare)}`}</p>
       <p className="mt-3 text-sm font-bold">
-        {short ? `of silence at the end. add ~${Math.ceil(stats.shortBy / 210)} more songs.` : "to spare. even if the wall hits."}
+        {short ? `of silence at the end. Add ~${Math.ceil(stats.shortBy / 210)} more songs.` : "to spare, even if the wall hits."}
       </p>
-      <p className="mt-1 font-mono text-xs">
+      <p className="mt-1 font-mono text-xs text-paper/60">
         {fmtClock(stats.totalPlay, true)} total · {stats.raceSongs} race songs
         {stats.corralSongs ? ` · ${stats.corralSongs} corral` : ""}
       </p>
@@ -122,26 +123,23 @@ function RampCard({ plan }: { plan: Plan }) {
   const ramp = stats.openingBpm && stats.closingBpm ? stats.closingBpm - stats.openingBpm : null;
 
   return (
-    <div className={card} style={{ background: "var(--color-lilac)", ["--sh" as string]: "var(--color-paper)" }}>
+    <div className={quiet} style={{ borderTopColor: "var(--color-lilac)" }}>
       <Label>📈 bpm ramp</Label>
-      <p className="font-display text-3xl font-black leading-none">
+      <p className="font-display text-3xl font-black leading-none text-lilac">
         {ramp == null ? "??? bpm" : ramp >= 0 ? `+${ramp} bpm` : `${ramp} bpm`}
       </p>
       <svg viewBox={`0 0 ${W} ${Hh}`} className="mt-2 h-14 w-full" preserveAspectRatio="none" aria-hidden>
-        {pts.length > 1 && <polyline points={pts.map((p) => p.join(",")).join(" ")} fill="none" stroke="#0b0b0f" strokeWidth={2.5} strokeLinejoin="round" />}
+        {pts.length > 1 && <polyline points={pts.map((p) => p.join(",")).join(" ")} fill="none" stroke="#b69cff" strokeWidth={2.5} strokeLinejoin="round" />}
         {pts.map(([x, y], i) => (
-          <circle key={i} cx={x} cy={y} r={2.2} fill="#0b0b0f" />
+          <circle key={i} cx={x} cy={y} r={2.2} fill="#b69cff" />
         ))}
       </svg>
-      <p className="font-mono text-xs">
-        {stats.openingBpm ?? "—"} → {stats.closingBpm ?? "—"} · {ramp == null ? "add BPMs" : ramp > 8 ? "slow start, fast finish 🔥" : ramp < -8 ? "you're ramping DOWN 💀" : "flat vibes"}
+      <p className="font-mono text-xs text-paper/60">
+        {stats.openingBpm ?? "—"} → {stats.closingBpm ?? "—"} · {ramp == null ? "add BPMs" : ramp > 8 ? "slow start, fast finish" : ramp < -8 ? "tempo drops toward the finish" : "pretty flat"}
       </p>
       <button
         className="btn mt-3 bg-paper px-4 py-2 text-[11px]"
-        onClick={() => {
-          reorder(autoRamp(plan.tracks, plan.settings, plan.model));
-          confetti();
-        }}
+        onClick={() => reorder(autoRamp(plan.tracks, plan.settings, plan.model))}
       >
         🪄 auto-ramp
       </button>
@@ -152,24 +150,24 @@ function RampCard({ plan }: { plan: Plan }) {
 function LandmarkCard({ plan }: { plan: Plan }) {
   const select = useKD((s) => s.select);
   return (
-    <div className={`${card} md:col-span-2 xl:col-span-1`} style={{ background: "var(--color-sun)", ["--sh" as string]: "var(--color-paper)" }}>
+    <div className={`${quiet} md:col-span-2 xl:col-span-1`} style={{ borderTopColor: "var(--color-sun)" }}>
       <Label>📍 now playing at…</Label>
       {plan.hits.length ? (
         <ul className="max-h-52 space-y-1.5 overflow-y-auto pr-1 text-sm">
           {plan.hits.map(({ landmark, segment }) => (
             <li key={landmark.name}>
-              <button className="flex w-full items-start gap-2 text-left hover:underline" onClick={() => segment && select(segment.track.key)} title={landmark.vibe}>
+              <button className="flex w-full items-start gap-2 text-left hover:text-sun" onClick={() => segment && select(segment.track.key)} title={landmark.vibe}>
                 <span>{landmark.emoji}</span>
                 <span className="min-w-0">
                   <span className="block font-bold leading-tight">{landmark.name}</span>
-                  <span className="block truncate text-xs">{segment ? `♪ ${segment.track.title}` : "🔇 nothing"}</span>
+                  <span className="block truncate text-xs text-paper/60">{segment ? `♪ ${segment.track.title}` : "🔇 nothing"}</span>
                 </span>
               </button>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-sm">No landmarks on custom courses (yet). Hover the strip to see what&apos;s playing anywhere.</p>
+        <p className="text-sm text-paper/70">No landmarks on custom courses (yet). Hover the strip to see what&apos;s playing anywhere.</p>
       )}
     </div>
   );

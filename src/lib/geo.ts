@@ -53,7 +53,7 @@ export function buildCourse(opts: {
   approximate?: boolean;
 }): Course {
   const raw = opts.raw.filter((p, i, a) => i === 0 || p.lat !== a[i - 1].lat || p.lon !== a[i - 1].lon);
-  if (raw.length < 2) throw new Error("That course has fewer than 2 GPS points. Not much of a race 💀");
+  if (raw.length < 2) throw new Error("That course has fewer than 2 GPS points.");
 
   const cum: number[] = [0];
   for (let i = 1; i < raw.length; i++) {

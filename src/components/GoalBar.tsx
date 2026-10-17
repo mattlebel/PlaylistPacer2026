@@ -162,14 +162,14 @@ export function NerdSettings({ plan }: { plan: Plan }) {
         </div>
         {Math.abs(plan.course.measuredDistance - plan.course.distance) > 50 && (
           <p className="mt-1 text-xs text-paper/40">
-            GPS measured {toUnits(plan.course.measuredDistance, u).toFixed(2)} {u}. Your watch will lie too. We&apos;re not mad.
+            GPS measured {toUnits(plan.course.measuredDistance, u).toFixed(2)} {u}. Watches usually read a little long — that&apos;s normal.
           </p>
         )}
       </div>
       <div className="flex flex-wrap items-end gap-4">
         <div>
           <div className="mb-2 font-display text-[10px] font-black uppercase tracking-widest text-paper/60">Units</div>
-          <Segmented label="units" size="sm" value={u} onChange={(v) => set({ units: v })} options={[{ value: "mi", label: "mi 🇺🇸" }, { value: "km", label: "km 🌍" }]} />
+          <Segmented label="units" size="sm" value={u} onChange={(v) => set({ units: v })} options={[{ value: "mi", label: "mi" }, { value: "km", label: "km" }]} />
         </div>
         <div>
           <div className="mb-2 font-display text-[10px] font-black uppercase tracking-widest text-paper/60">Colors</div>
@@ -179,8 +179,8 @@ export function NerdSettings({ plan }: { plan: Plan }) {
             value={s.colorMode}
             onChange={(v) => set({ colorMode: v })}
             options={[
-              { value: "bpm", label: "🔥 BPM heat" },
-              { value: "rainbow", label: "🌈 Chaos" },
+              { value: "bpm", label: "BPM heat" },
+              { value: "rainbow", label: "Rainbow" },
             ]}
           />
         </div>

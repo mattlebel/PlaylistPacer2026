@@ -25,7 +25,7 @@ export interface StravaSession {
 }
 
 async function key() {
-  const raw = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`kickdrop:${process.env.STRAVA_CLIENT_SECRET}`));
+  const raw = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`playlistpacer:${process.env.STRAVA_CLIENT_SECRET}`));
   return crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
 }
 

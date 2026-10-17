@@ -42,7 +42,7 @@ export function PlaylistModal({
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Bring the bangers" accent="var(--color-hot)" wide>
+    <Modal open={open} onClose={onClose} title="Add your playlist" accent="var(--color-hot)" wide>
       <Tabs
         value={tab || "spotify"}
         onChange={setTab}
@@ -57,11 +57,11 @@ export function PlaylistModal({
       {tab === "demo" && (
         <div className="space-y-4">
           <p>
-            65 running anthems, from Empire State of Mind to &apos;Till I Collapse, in a deliberately chaotic order so you can
-            watch auto-ramp fix it.
+            65 running songs, from Empire State of Mind to &apos;Till I Collapse, shuffled so you can see what auto-ramp
+            does.
           </p>
           <button className="btn bg-acid px-6 py-3 text-sm" onClick={() => accept(demoTracks(), DEMO_PLAYLIST_NAME, "demo")}>
-            🎲 Load the sample mix
+            Load the sample mix
           </button>
         </div>
       )}
@@ -93,7 +93,7 @@ function SpotifyTab({ onTracks }: { onTracks(t: Track[], name: string): void }) 
     setErr(null);
     try {
       const { name, tracks } = await playlistTracks(id);
-      if (!tracks.length) throw new Error("That playlist is empty. Bold strategy.");
+      if (!tracks.length) throw new Error("That playlist is empty.");
       setBusy("bpm");
       const bpm = await lookupBpms(tracks.map((t) => t.spotifyId).filter((x): x is string => !!x));
       onTracks(
@@ -124,7 +124,7 @@ function SpotifyTab({ onTracks }: { onTracks(t: Track[], name: string): void }) 
       <div className="space-y-4">
         <p>Connect Spotify to pull in any playlist you own or collaborate on. We only read playlists, and save new ones when you ask.</p>
         <button className="btn bg-mint px-6 py-3 text-sm" onClick={() => startSpotifyLogin()}>
-          💚 Connect Spotify
+          Connect Spotify
         </button>
         {err && <p className="font-bold text-hot">{err}</p>}
       </div>
@@ -163,7 +163,7 @@ function SpotifyTab({ onTracks }: { onTracks(t: Track[], name: string): void }) 
             key={l.id}
             onClick={() => load(l.id)}
             disabled={!!busy}
-            className="group rounded-2xl border-2 border-paper/10 bg-ink p-2 text-left transition hover:-rotate-1 hover:border-hot"
+            className="group rounded-2xl border-2 border-paper/10 bg-ink p-2 text-left transition hover:border-hot"
           >
             <div className="aspect-square overflow-hidden rounded-xl bg-ink-3">
               {l.image ? (

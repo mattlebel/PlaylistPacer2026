@@ -88,7 +88,7 @@ export const useKD = create<State>()(
       },
     }),
     {
-      name: "kickdrop.v1",
+      name: "playlistpacer.v1",
       partialize: ({ course, tracks, playlistName, playlistSource, settings }) => ({
         course,
         tracks,

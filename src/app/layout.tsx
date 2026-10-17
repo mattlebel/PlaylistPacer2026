@@ -7,7 +7,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "KICKDROP — time the drop, own the kick",
+  title: "Playlist Pacer — time the drop, own the kick",
   description:
     "Map your race playlist onto the course. See which song hits at the Queensboro Bridge, ramp the BPM, and land your finishing banger on the last stretch.",
 };

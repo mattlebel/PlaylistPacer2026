@@ -21,10 +21,10 @@ export function ShareModal({ open, onClose, plan, notify }: { open: boolean; onC
       const url = await toPng(card.current, { pixelRatio: 2, cacheBust: true });
       const a = document.createElement("a");
       a.href = url;
-      a.download = `kickdrop-${plan.course.name.toLowerCase().replace(/\W+/g, "-")}.png`;
+      a.download = `playlist-pacer-${plan.course.name.toLowerCase().replace(/\W+/g, "-")}.png`;
       a.click();
     } catch {
-      notify("Couldn't render the image. Screenshot it, bestie.");
+      notify("Couldn't render the image — try a screenshot instead.");
     } finally {
       setBusy(null);
     }
@@ -32,7 +32,7 @@ export function ShareModal({ open, onClose, plan, notify }: { open: boolean; onC
 
   const copyCues = async () => {
     await navigator.clipboard.writeText(cueSheet(plan, playlistName));
-    notify("📋 Cue sheet copied. Paste it in the group chat.");
+    notify("Cue sheet copied.");
   };
 
   const toSpotify = async () => {
@@ -41,7 +41,7 @@ export function ShareModal({ open, onClose, plan, notify }: { open: boolean; onC
       const race = plan.segments.filter((s) => s.phase !== "post").map((s) => s.track);
       const url = await savePlaylist(
         `⚡ ${plan.course.name} — ${fmtClock(plan.model.goal, true)}`,
-        `Race-ordered by KICKDROP. Kick: ${plan.kick?.segment.track.title ?? "—"}`,
+        `Race-ordered by Playlist Pacer. Kick: ${plan.kick?.segment.track.title ?? "—"}`,
         [...race, ...plan.segments.filter((s) => s.phase === "post").map((s) => s.track)],
       );
       notify("💚 Saved to Spotify!");
@@ -54,7 +54,7 @@ export function ShareModal({ open, onClose, plan, notify }: { open: boolean; onC
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Flex the plan" accent="var(--color-sun)" wide>
+    <Modal open={open} onClose={onClose} title="Share your plan" accent="var(--color-sun)" wide>
       <div className="grid gap-6 md:grid-cols-[1fr_auto]">
         <div className="overflow-hidden rounded-2xl">
           <div className="origin-top-left" style={{ width: 540 * 0.75, height: 675 * 0.75 }}>
@@ -97,7 +97,7 @@ function cueSheet(plan: Plan, playlistName: string) {
     const kick = s.track.key === plan.settings.kickKey ? "⚡ " : "   ";
     lines.push(`${kick}${toUnits(s.startD, u).toFixed(2).padStart(5)} ${u}  ${fmtClock(s.raceStart, true)}  ${s.track.title} — ${s.track.artist}`);
   }
-  lines.push("", "made with KICKDROP ⚡ time the drop, own the kick");
+  lines.push("", "made with Playlist Pacer");
   return lines.join("\n");
 }
 
@@ -132,8 +132,8 @@ function Poster({ plan, playlistName, ref }: { plan: Plan; playlistName: string;
       <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-hot/40 blur-3xl" />
       <div className="absolute -bottom-24 -left-20 h-72 w-72 rounded-full bg-ice/30 blur-3xl" />
       <div className="relative flex items-center justify-between">
-        <span className="font-display text-sm font-black tracking-tight">KICKDROP⚡</span>
-        <span className="rotate-3 rounded-full border-2 border-black bg-acid px-3 py-0.5 font-display text-[10px] font-black text-ink">RACE PLAYLIST PLAN</span>
+        <span className="font-display text-sm font-black uppercase tracking-tight">Playlist <span className="text-acid">Pacer</span></span>
+        <span className="rounded-full border-2 border-black bg-acid px-3 py-0.5 font-display text-[10px] font-black text-ink">RACE PLAYLIST PLAN</span>
       </div>
       <div className="relative mt-4 font-display text-[40px] font-black uppercase leading-[0.9]">{plan.course.name}</div>
       <div className="relative mt-1 truncate text-sm text-paper/60">🎧 {playlistName}</div>
@@ -156,8 +156,8 @@ function Poster({ plan, playlistName, ref }: { plan: Plan; playlistName: string;
         ].map(([k, v], i) => (
           <div
             key={k}
-            className="rounded-2xl border-[3px] border-black px-2 py-2 text-ink"
-            style={{ background: ["#d4ff3a", "#ff3da5", "#3ddcff", "#b69cff"][i], transform: `rotate(${[-2, 1.5, -1, 2][i]}deg)` }}
+            className="rounded-2xl border-2 border-black px-2 py-2 text-ink"
+            style={{ background: ["#d4ff3a", "#ff3da5", "#3ddcff", "#b69cff"][i] }}
           >
             <div className="font-display text-[9px] font-black uppercase">{k}</div>
             <div className="font-display text-[15px] font-black tabular-nums leading-tight">{v}</div>
@@ -165,7 +165,7 @@ function Poster({ plan, playlistName, ref }: { plan: Plan; playlistName: string;
         ))}
       </div>
       {kick && (
-        <div className="relative mt-4 rounded-2xl border-[3px] border-black bg-paper px-4 py-3 text-ink shadow-[5px_5px_0_#ff3da5]">
+        <div className="relative mt-4 rounded-2xl border-2 border-black bg-paper px-4 py-3 text-ink">
           <div className="font-display text-[10px] font-black uppercase">⚡ the kick drops at {u} {toUnits(kick.segment.startD, u).toFixed(1)}</div>
           <div className="truncate font-display text-lg font-black">{kick.segment.track.title}</div>
         </div>
