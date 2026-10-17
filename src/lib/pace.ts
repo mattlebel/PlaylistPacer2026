@@ -1,5 +1,5 @@
 import { bisect } from "./geo";
-import type { Course, PlanSettings } from "./types";
+import type { Course, PaceSettings } from "./types";
 
 export interface PaceModel {
   goal: number;
@@ -16,7 +16,7 @@ function hillCost(grade: number) {
   return g >= 0 ? 1 + 3.3 * g : Math.max(0.9, 1 + 1.8 * g);
 }
 
-export function buildPaceModel(course: Course, s: PlanSettings): PaceModel {
+export function buildPaceModel(course: Course, s: PaceSettings): PaceModel {
   const pts = course.points;
   const n = pts.length;
   const D = course.distance;

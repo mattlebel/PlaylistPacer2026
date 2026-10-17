@@ -1,19 +1,14 @@
 "use client";
 
-import type { Track } from "./types";
+
 
 /**
  * Spotify via Authorization Code + PKCE, entirely in the browser (no client secret).
- * Since Feb 2026, development-mode apps can only read playlists the user owns or
- * collaborates on, so we list "your playlists" rather than relying on pasted links.
+ * Used by the runner on race morning to save the "Don't peek" playlist.
  */
 const CLIENT_ID = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID ?? "";
-const SCOPES = [
-  "playlist-read-private",
-  "playlist-read-collaborative",
-  "playlist-modify-private",
-  "playlist-modify-public",
-].join(" ");
+// Only the runner logs in, and only to save the race-day playlist.
+const SCOPES = ["playlist-modify-private", "playlist-modify-public"].join(" ");
 const TOKEN_KEY = "kd.spotify.token";
 const VERIFIER_KEY = "kd.spotify.verifier";
 const API = "https://api.spotify.com/v1";
@@ -33,7 +28,17 @@ function b64url(bytes: Uint8Array) {
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-export async function startSpotifyLogin() {
+const RETURN_KEY = "kd.spotify.return";
+
+/** Where to send the runner after Spotify login (set before redirecting). */
+export function takeReturnPath() {
+  const p = sessionStorage.getItem(RETURN_KEY) ?? "/";
+  sessionStorage.removeItem(RETURN_KEY);
+  return p;
+}
+
+export async function startSpotifyLogin(returnPath = window.location.pathname + window.location.hash) {
+  sessionStorage.setItem(RETURN_KEY, returnPath);
   const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
   const challenge = b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))));
   sessionStorage.setItem(VERIFIER_KEY, verifier);
@@ -109,105 +114,9 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return res.status === 204 ? (undefined as T) : res.json();
 }
 
-export interface PlaylistSummary {
-  id: string;
-  name: string;
-  image?: string;
-  count: number;
-  owner: string;
-}
-
-interface Paged<T> {
-  items: T[];
-  next: string | null;
-}
-
-interface SpPlaylist {
-  id: string;
-  name: string;
-  images?: { url: string }[] | null;
-  owner?: { display_name?: string };
-  items?: { total: number };
-  tracks?: { total: number };
-}
-
-export async function myPlaylists(): Promise<PlaylistSummary[]> {
-  const out: PlaylistSummary[] = [];
-  let next: string | null = "/me/playlists?limit=50";
-  while (next && out.length < 200) {
-    const page: Paged<SpPlaylist | null> = await api(next);
-    for (const p of page.items) {
-      if (!p) continue;
-      out.push({
-        id: p.id,
-        name: p.name,
-        image: p.images?.[0]?.url,
-        count: p.items?.total ?? p.tracks?.total ?? 0,
-        owner: p.owner?.display_name ?? "",
-      });
-    }
-    next = page.next;
-  }
-  return out;
-}
-
-export function playlistIdFromUrl(text: string) {
-  const m = text.match(/playlist[/:]([A-Za-z0-9]{10,})/);
-  return m ? m[1] : /^[A-Za-z0-9]{16,}$/.test(text.trim()) ? text.trim() : null;
-}
-
-interface SpTrack {
-  id: string | null;
-  uri: string;
-  name: string;
-  type?: string;
-  duration_ms: number;
-  is_local?: boolean;
-  artists: { name: string }[];
-  album?: { images?: { url: string }[] };
-}
-
-export async function playlistTracks(id: string): Promise<{ name: string; url: string; tracks: Track[] }> {
-  const meta = await api<{ name: string }>(`/playlists/${id}?fields=name`);
-  const tracks: Track[] = [];
-  // Feb 2026 renamed /tracks -> /items and item.track -> item.item. Accept both.
-  let next: string | null = `/playlists/${id}/items?limit=50`;
-  let first = true;
-  while (next) {
-    let page: Paged<{ item?: SpTrack | null; track?: SpTrack | null }>;
-    try {
-      page = await api(next);
-    } catch (e) {
-      if (first && (e as { status?: number }).status === 404) {
-        next = `/playlists/${id}/tracks?limit=50`;
-        first = false;
-        continue;
-      }
-      throw e;
-    }
-    first = false;
-    for (const row of page.items) {
-      const t = row.item ?? row.track;
-      if (!t || (t.type && t.type !== "track")) continue;
-      tracks.push({
-        key: `${t.id ?? t.uri}-${tracks.length}`,
-        title: t.name,
-        artist: t.artists.map((a) => a.name).join(", "),
-        durationSec: Math.round(t.duration_ms / 1000),
-        spotifyId: t.id ?? undefined,
-        uri: t.is_local ? undefined : t.uri,
-        art: t.album?.images?.at(-2)?.url ?? t.album?.images?.[0]?.url,
-      });
-    }
-    next = page.next;
-  }
-  return { name: meta.name, url: spotifyPlaylistUrl(id), tracks };
-}
-
-/** Save the arranged order as a brand new private playlist. */
-export async function savePlaylist(name: string, description: string, tracks: Track[]) {
-  const uris = tracks.map((t) => t.uri).filter((u): u is string => !!u);
-  if (!uris.length) throw new Error("None of these songs are on Spotify (sample mix?). Import a real playlist first.");
+/** Save tracks, in order, as a brand new private playlist. Returns its open.spotify.com link. */
+export async function savePlaylist(name: string, description: string, uris: string[]) {
+  if (!uris.length) throw new Error("None of these songs are on Spotify yet.");
   const pl = await api<{ id: string; external_urls: { spotify: string } }>("/me/playlists", {
     method: "POST",
     body: JSON.stringify({ name, description, public: false }),
@@ -216,18 +125,4 @@ export async function savePlaylist(name: string, description: string, tracks: Tr
     await api(`/playlists/${pl.id}/items`, { method: "POST", body: JSON.stringify({ uris: uris.slice(i, i + 100) }) });
   }
   return pl.external_urls.spotify;
-}
-
-/** BPM lookup through our server (ReccoBeats). Best-effort: missing BPMs stay editable. */
-export async function lookupBpms(ids: string[]): Promise<Record<string, number>> {
-  const out: Record<string, number> = {};
-  for (let i = 0; i < ids.length; i += 40) {
-    try {
-      const res = await fetch(`/api/bpm?ids=${ids.slice(i, i + 40).join(",")}`);
-      if (res.ok) Object.assign(out, (await res.json()).bpm);
-    } catch {
-      /* keep going */
-    }
-  }
-  return out;
 }

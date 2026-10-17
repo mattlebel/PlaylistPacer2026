@@ -1,17 +1,26 @@
-import { expect, loadDemo, test } from "./fixtures";
+import { createRace, expect, test, typeSong } from "./fixtures";
 
-test("landing page fits a phone without sideways scrolling", async ({ page }) => {
-  await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  expect(overflow).toBeLessThanOrEqual(1);
+const overflow = (page: import("@playwright/test").Page) =>
+  page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+
+test("friends can plant from a phone", async ({ page, request }) => {
+  const race = await createRace(request);
+  await page.goto(`/r/${race.id}`);
+  await expect(page.getByRole("heading", { name: "Help Matt run 26.2" })).toBeVisible();
+  expect(await overflow(page)).toBeLessThanOrEqual(1);
+
+  await page.locator("#moment-first-ave").getByRole("button", { name: "Plant a song here" }).tap();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Your name").fill("Jules");
+  await dialog.getByLabel("Your email").fill("jules@x.com");
+  await typeSong(dialog.locator("form"), "Dog Days Are Over", "Florence + The Machine");
+  await dialog.getByRole("button", { name: "Plant my song" }).tap();
+  await expect(page.getByRole("dialog", { name: "Planted!" })).toBeVisible();
 });
 
-test("the planner works on a phone", async ({ page }) => {
-  await loadDemo(page);
-  await expect(page.getByTestId("avg-pace")).toBeVisible();
-  await page.getByRole("button", { name: "Sort slow → fast" }).tap();
-  await expect(page.getByTestId("tempo-summary")).toContainText("builds to the finish");
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  expect(overflow).toBeLessThanOrEqual(1);
+test("home and setup fit a phone", async ({ page }) => {
+  await page.goto("/");
+  expect(await overflow(page)).toBeLessThanOrEqual(1);
+  await page.goto("/new");
+  expect(await overflow(page)).toBeLessThanOrEqual(1);
 });

@@ -4,10 +4,14 @@ import "@fontsource-variable/martian-mono";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
 
+const base = process.env.APP_URL ?? process.env.RENDER_EXTERNAL_URL;
+
 export const metadata: Metadata = {
-  title: "Playlist Pacer — your race, sequenced like an album",
+  // Absolute URLs for link-preview images.
+  metadataBase: base ? new URL(base) : undefined,
+  title: "Playlist Pacer — your marathon, soundtracked by your people",
   description:
-    "Map your race playlist onto the course. See which song hits at the Queensboro Bridge, ramp the BPM, and land your finishing banger on the last stretch.",
+    "Share one link and let friends and family plant a song, with a short note, at a moment along your NYC Marathon course.",
 };
 
 export const viewport: Viewport = {

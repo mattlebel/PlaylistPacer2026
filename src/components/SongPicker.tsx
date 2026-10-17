@@ -1,0 +1,166 @@
+"use client";
+
+import { useEffect, useId, useRef, useState } from "react";
+import { searchSongs } from "@/lib/client/api";
+import { spotifyTrackUrl } from "@/lib/spotify";
+import type { Song } from "@/lib/types";
+import { SpotifyIcon } from "./brand";
+
+// Ask the server once per page whether Spotify search is available.
+let configuredCheck: Promise<boolean> | null = null;
+const searchAvailable = () =>
+  (configuredCheck ??= searchSongs("")
+    .then((r) => r.configured)
+    .catch(() => true));
+
+/** Search Spotify (through our server) or, if search isn't configured, type the song in. */
+export function SongPicker({
+  label,
+  value,
+  onChange,
+  autoFocus = false,
+}: {
+  label: string;
+  value?: Song;
+  onChange(song: Song | undefined): void;
+  autoFocus?: boolean;
+}) {
+  const id = useId();
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState<Song[]>([]);
+  const [configured, setConfigured] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [manual, setManual] = useState({ title: "", artist: "" });
+  const seq = useRef(0);
+
+  useEffect(() => {
+    let live = true;
+    searchAvailable().then((ok) => live && setConfigured(ok));
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (value || q.trim().length < 2) return;
+    const n = ++seq.current;
+    const t = setTimeout(async () => {
+      setBusy(true);
+      try {
+        const r = await searchSongs(q);
+        if (n !== seq.current) return;
+        setConfigured(r.configured);
+        setResults(r.results);
+        setErr(r.error ?? null);
+      } catch {
+        if (n === seq.current) setErr("Search isn't working right now. Try again in a moment.");
+      } finally {
+        if (n === seq.current) setBusy(false);
+      }
+    }, 280);
+    return () => clearTimeout(t);
+  }, [q, value]);
+
+  if (value) {
+    return (
+      <div>
+        <div className="label mb-2">{label}</div>
+        <div className="flex items-center gap-3 rounded-xl bg-ink-3 p-2 pr-3">
+          {value.art && value.spotifyId ? (
+            <a href={spotifyTrackUrl(value.spotifyId)} target="_blank" rel="noreferrer" aria-label={`Open ${value.title} on Spotify`} className="h-12 w-12 shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={value.art} alt="" className="h-full w-full rounded-[4px] object-cover" />
+            </a>
+          ) : (
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[4px] bg-pink text-xl text-ink">♪</span>
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-semibold" title={value.title}>
+              {value.title}
+            </div>
+            <div className="truncate text-sm text-pink/70" title={value.artist}>
+              {value.artist}
+            </div>
+          </div>
+          <button type="button" className="text-sm font-semibold underline underline-offset-4" onClick={() => onChange(undefined)} aria-label={`Change ${label.toLowerCase()}`}>
+            Change
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!configured) {
+    const ready = manual.title.trim() && manual.artist.trim();
+    return (
+      <div>
+        <div className="label mb-2">{label}</div>
+        <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+          <input aria-label="Song title" className="field" placeholder="Song title" value={manual.title} onChange={(e) => setManual({ ...manual, title: e.target.value })} />
+          <input aria-label="Artist" className="field" placeholder="Artist" value={manual.artist} onChange={(e) => setManual({ ...manual, artist: e.target.value })} />
+          <button
+            type="button"
+            className="btn bg-pink px-5 py-2.5 text-sm"
+            disabled={!ready}
+            onClick={() => onChange({ title: manual.title.trim(), artist: manual.artist.trim() })}
+          >
+            Use this song
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <label htmlFor={id} className="label mb-2 block">
+        {label}
+      </label>
+      <input
+        id={id}
+        className="field"
+        placeholder="Search for a song or artist"
+        value={q}
+        autoFocus={autoFocus}
+        autoComplete="off"
+        onChange={(e) => setQ(e.target.value)}
+      />
+      <div className="mt-2 flex items-center justify-between text-xs text-pink/60">
+        <span>{busy ? "Searching…" : err ?? (q.trim().length >= 2 && !results.length ? "No matches yet" : "")}</span>
+        <span className="inline-flex items-center gap-1.5">
+          <SpotifyIcon size={14} /> Search by Spotify
+        </span>
+      </div>
+      {results.length > 0 && (
+        <ul className="mt-2 max-h-72 space-y-1 overflow-y-auto pr-1" role="listbox" aria-label="Search results">
+          {results.map((s) => (
+            <li key={s.spotifyId ?? s.title} className="flex items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-ink/25">
+              <button type="button" role="option" aria-selected={false} className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => onChange(s)}>
+                {s.art ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={s.art} alt="" className="h-10 w-10 shrink-0 rounded-[4px] object-cover" />
+                ) : (
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[4px] bg-ink-3">♪</span>
+                )}
+                <span className="min-w-0">
+                  <span className="block truncate font-semibold" title={s.title}>
+                    {s.title}
+                  </span>
+                  <span className="block truncate text-sm text-pink/70" title={s.artist}>
+                    {s.artist}
+                  </span>
+                </span>
+              </button>
+              {s.spotifyId && (
+                <a href={spotifyTrackUrl(s.spotifyId)} target="_blank" rel="noreferrer" className="shrink-0 p-1 text-pink/70 hover:text-chalk" aria-label={`Play ${s.title} on Spotify`}>
+                  <SpotifyIcon size={18} />
+                </a>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
