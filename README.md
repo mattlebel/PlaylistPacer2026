@@ -29,8 +29,17 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
 - **After the gun:** tap reveal (it also happens automatically 30 minutes after your goal time) to see every
   song and read every note.
 
-The moments are in `src/lib/race.ts`. Estimated times use hill-adjusted pacing on the NYC course in
-`src/lib/courses/`. Race day runs on EST, since daylight saving ends at 2am that morning.
+The moments are in `src/lib/race.ts`. The NYC course comes from a real GPS track of the 2025 race,
+scaled to the certified 42,195 m and stored as positions plus elevation only. Estimated times use
+hill-adjusted pacing on that course. Race day runs on EST, since daylight saving ends at 2am that morning.
+
+To add or refresh a course from any GPX (your own Strava or Garmin export works):
+
+```bash
+node scripts/import-course.mjs race.gpx src/lib/courses/<race>.json   # drops times, heart rate, etc.
+```
+
+`tests/unit/courses.test.ts` checks that every moment sits near the landmark it's named for.
 
 ## Run it locally
 
