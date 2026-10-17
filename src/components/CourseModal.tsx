@@ -45,7 +45,7 @@ export function CourseModal({
   const accept = useCallback(
     (c: Course, goal?: number) => {
       setCourse(c, goal);
-      notify(c.hasTimes ? `👻 Ghost mode on: pacing off how you actually ran “${c.name}”.` : `📍 ${c.name} locked in.`);
+      notify(c.hasTimes ? `Ghost pacing on: following how you actually ran “${c.name}”.` : `${c.name} loaded.`);
       onClose();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -53,14 +53,14 @@ export function CourseModal({
   );
 
   return (
-    <Modal open={open} onClose={onClose} title="Pick your course" accent="var(--color-ice)" wide>
+    <Modal open={open} onClose={onClose} title="Pick your course" wide>
       <Tabs
         value={tab || "presets"}
         onChange={setTab}
         tabs={[
-          { value: "presets", label: "NYC classics", emoji: "🗽" },
-          { value: "gpx", label: "Upload GPX", emoji: "📂" },
-          { value: "strava", label: "Strava", emoji: "🧡" },
+          { value: "presets", label: "NYC classics" },
+          { value: "gpx", label: "Upload GPX" },
+          { value: "strava", label: "Strava" },
         ]}
       />
       {tab === "presets" && (
@@ -71,16 +71,16 @@ export function CourseModal({
               onClick={() => accept(loadPreset(p.id), p.defaultGoal)}
               className="stk group relative flex flex-col items-start p-4 text-left transition hover:-translate-y-0.5"
               style={{
-                background: ["var(--color-acid)", "var(--color-hot)", "var(--color-ice)"][i % 3],
+                background: ["var(--color-pink)", "var(--color-sky)", "var(--color-butter)"][i % 3],
               }}
             >
               {current === p.id && (
-                <span className="absolute -right-2 -top-3 rounded-full border-2 border-black bg-paper px-2 py-0.5 text-[10px] font-black uppercase">
+                <span className="absolute -right-2 -top-3 rounded-full bg-pink px-2 py-0.5 text-[10px] font-extrabold uppercase">
                   current
                 </span>
               )}
               <span className="text-4xl">{p.emoji}</span>
-              <span className="mt-3 font-display text-lg font-black uppercase leading-tight">{p.name}</span>
+              <span className="mt-3 font-display text-lg font-extrabold leading-tight">{p.name}</span>
               <span className="mt-1 font-mono text-xs font-bold">{p.short}</span>
               <span className="mt-2 text-sm leading-snug">{p.blurb}</span>
             </button>
@@ -137,15 +137,14 @@ export function GpxDrop({ onCourse }: { onCourse(c: Course): void }) {
           handle(e.dataTransfer.files[0]);
         }}
         className={`flex w-full flex-col items-center justify-center gap-2 rounded-3xl border-[3px] border-dashed p-10 text-center transition ${
-          drag ? "scale-[1.02] border-acid bg-acid/10" : "border-paper/25 hover:border-paper/60"
+          drag ? "scale-[1.02] border-pink bg-pink/10" : "border-pink/25 hover:border-pink/60"
         }`}
       >
-        <span className="text-5xl">🗺️</span>
-        <span className="font-display text-lg font-black uppercase">Drop a .gpx here</span>
-        <span className="text-sm text-paper/60">or tap to browse. Activity GPX with timestamps unlocks 👻 ghost pacing.</span>
+                <span className="font-display text-lg font-extrabold">Drop a .gpx here</span>
+        <span className="text-sm text-pink/60">or tap to browse. Activity GPX with timestamps unlocks ghost pacing.</span>
       </button>
       <input ref={input} type="file" accept=".gpx,application/gpx+xml" hidden onChange={(e) => handle(e.target.files?.[0])} />
-      {err && <p className="mt-3 font-bold text-hot">{err}</p>}
+      {err && <p className="mt-3 font-bold text-coral">{err}</p>}
     </div>
   );
 }
@@ -193,17 +192,17 @@ function StravaTab({ onCourse, units }: { onCourse(c: Course): void; units: "mi"
   const parsed = url.match(/(activities|routes)\/(\d+)/);
   const exportUrl = parsed ? `https://www.strava.com/${parsed[1]}/${parsed[2]}/export_gpx` : null;
 
-  if (!status) return <p className="animate-pulse text-paper/60">checking Strava…</p>;
+  if (!status) return <p className="animate-pulse text-pink/60">checking Strava…</p>;
 
   return (
     <div className="space-y-5">
       {status.connected ? (
-        <div className="flex items-center justify-between gap-3 rounded-2xl bg-tang/15 p-3">
+        <div className="flex items-center justify-between gap-3 rounded-2xl bg-ink/20 p-3">
           <span className="font-bold">
-            🧡 Connected{status.athlete?.firstname ? ` as ${status.athlete.firstname}` : ""}
+            Connected{status.athlete?.firstname ? ` as ${status.athlete.firstname}` : ""}
           </span>
           <button
-            className="text-sm text-paper/60 underline hover:text-paper"
+            className="text-sm text-pink/60 underline hover:text-pink"
             onClick={async () => {
               await fetch("/api/strava/logout", { method: "POST" });
               setStatus({ ...status, connected: false });
@@ -214,13 +213,13 @@ function StravaTab({ onCourse, units }: { onCourse(c: Course): void; units: "mi"
           </button>
         </div>
       ) : status.configured ? (
-        <a href="/api/strava/login" className="btn bg-tang px-6 py-3 text-sm" style={{ ["--sh" as string]: "var(--color-paper)" }}>
-          🧡 Connect Strava
+        <a href="/api/strava/login" className="btn bg-pink px-6 py-3 text-sm">
+          Connect Strava
         </a>
       ) : null}
 
       <div>
-        <label htmlFor="strava-url" className="mb-2 block font-display text-xs font-black uppercase tracking-wider text-paper/70">
+        <label htmlFor="strava-url" className="mb-2 block font-mono text-xs uppercase tracking-wider text-pink/70">
           Paste a Strava activity or route link
         </label>
         <div className="flex gap-2">
@@ -232,18 +231,18 @@ function StravaTab({ onCourse, units }: { onCourse(c: Course): void; units: "mi"
             onChange={(e) => setUrl(e.target.value)}
           />
           {status.connected && (
-            <button className="btn bg-acid px-5 text-xs" disabled={!url || !!busy} onClick={() => importRef(url)}>
+            <button className="btn bg-pink px-5 text-xs" disabled={!url || !!busy} onClick={() => importRef(url)}>
               {busy === url ? "…" : "Import"}
             </button>
           )}
         </div>
         {!status.connected && exportUrl && (
-          <div className="mt-3 rounded-2xl border-2 border-paper/15 p-4 text-sm">
+          <div className="mt-3 rounded-2xl border-2 border-pink/15 p-4 text-sm">
             <p className="mb-3">
               No API needed: grab the GPX straight from Strava (you&apos;ll need to be logged in there), then drop it below.
             </p>
-            <a href={exportUrl} target="_blank" rel="noreferrer" className="btn bg-tang px-4 py-2 text-xs">
-              ⬇️ Download GPX from Strava
+            <a href={exportUrl} target="_blank" rel="noreferrer" className="btn bg-pink px-4 py-2 text-xs">
+              Download GPX from Strava
             </a>
           </div>
         )}
@@ -259,31 +258,31 @@ function StravaTab({ onCourse, units }: { onCourse(c: Course): void; units: "mi"
 
       {runs && (
         <div>
-          <h3 className="mb-2 font-display text-xs font-black uppercase tracking-wider text-paper/70">Your recent runs</h3>
+          <h3 className="mb-2 font-mono text-xs uppercase tracking-wider text-pink/70">Your recent runs</h3>
           <ul className="max-h-72 space-y-2 overflow-y-auto pr-1">
             {runs.map((r) => (
               <li key={r.id}>
                 <button
                   onClick={() => importRef(`activities/${r.id}`)}
                   disabled={!!busy}
-                  className="flex w-full items-center gap-3 rounded-2xl border-2 border-paper/10 bg-ink px-3 py-2 text-left transition hover:border-tang"
+                  className="flex w-full items-center gap-3 rounded-2xl border-2 border-pink/10 bg-ink-3 px-3 py-2 text-left transition hover:border-peach"
                 >
-                  <span className="text-xl">{r.race ? "🏅" : "👟"}</span>
+                  <span className={`w-12 shrink-0 font-mono text-[10px] uppercase ${r.race ? "text-pink" : "text-pink/40"}`}>{r.race ? "race" : "run"}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-bold">{r.name}</span>
-                    <span className="font-mono text-xs text-paper/60">
+                    <span className="font-mono text-xs text-pink/60">
                       {new Date(r.date).toLocaleDateString()} · {fmtDist(r.distance, units)} {units} · {fmtClock(r.elapsed)}
                     </span>
                   </span>
-                  {busy === `activities/${r.id}` ? <span className="animate-spin">⏳</span> : <span className="text-paper/40">→</span>}
+                  {busy === `activities/${r.id}` ? <span className="animate-pulse">…</span> : <span className="text-pink/40">→</span>}
                 </button>
               </li>
             ))}
-            {!runs.length && <li className="text-paper/60">No runs with GPS yet.</li>}
+            {!runs.length && <li className="text-pink/60">No runs with GPS yet.</li>}
           </ul>
         </div>
       )}
-      {err && <p className="font-bold text-hot">{err}</p>}
+      {err && <p className="font-bold text-coral">{err}</p>}
     </div>
   );
 }

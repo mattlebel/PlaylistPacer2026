@@ -10,7 +10,7 @@ export function confetti(x = window.innerWidth / 2, y = window.innerHeight / 3) 
   document.body.appendChild(c);
   const ctx = c.getContext("2d")!;
   ctx.scale(devicePixelRatio, devicePixelRatio);
-  const colors = ["#d4ff3a", "#ff3da5", "#3ddcff", "#ff7a1a", "#b69cff", "#ffe53d"];
+  const colors = ["#f7d3d8", "#ffffff", "#9db8ff", "#ffe08a", "#c3b5f7", "#ff8fa3"];
   const bits = Array.from({ length: 140 }, () => ({
     x,
     y,

@@ -40,6 +40,9 @@ export function SongList({ plan }: { plan: Plan }) {
 
   const firstRace = plan.segments.findIndex((s) => s.phase === "race");
   const firstPost = plan.segments.findIndex((s) => s.phase === "post");
+  // Side B starts with the first song that begins in the second half.
+  const half = plan.course.distance / 2;
+  const sideB = plan.segments.findIndex((s) => s.phase === "race" && s.startD >= half);
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -47,9 +50,10 @@ export function SongList({ plan }: { plan: Plan }) {
         <ol ref={listRef} className="space-y-1.5">
           {plan.segments.map((seg, i) => (
             <Fragment key={seg.track.key}>
-              {i === 0 && seg.phase === "corral" && <Divider label="🚦 Corral — before the start mat" />}
-              {i === firstRace && <Divider label="🔫 Gun goes off" accent />}
-              {i === firstPost && <Divider label="🏁 Finish line — medal walk songs" accent />}
+              {i === 0 && seg.phase === "corral" && <Divider label="In the corral" />}
+              {i === firstRace && <Divider label="Side A · from the start" accent />}
+              {i === sideB && <Divider label="Side B · second half" accent />}
+              {i === firstPost && <Divider label="After the finish" />}
               <Row seg={seg} plan={plan} selected={seg.track.key === selectedKey} />
             </Fragment>
           ))}
@@ -61,10 +65,10 @@ export function SongList({ plan }: { plan: Plan }) {
 
 function Divider({ label, accent }: { label: string; accent?: boolean }) {
   return (
-    <li className={`flex items-center gap-2 px-1 pt-2 font-display text-[10px] font-black uppercase tracking-wider ${accent ? "text-acid" : "text-paper/50"}`}>
-      <span className="h-[2px] w-4 bg-current" />
+    <li className={`flex items-center gap-2 px-1 pt-2 font-mono text-[10px] uppercase tracking-wider ${accent ? "text-chalk" : "text-pink/50"}`}>
+      <span className="h-px w-4 bg-current" />
       {label}
-      <span className="h-[2px] flex-1 bg-current opacity-40" />
+      <span className="h-px flex-1 bg-current opacity-40" />
     </li>
   );
 }
@@ -75,7 +79,7 @@ function Row({ seg, plan, selected }: { seg: Segment; plan: Plan; selected: bool
   const select = useKD((s) => s.select);
   const set = useKD((s) => s.set);
   const removeTrack = useKD((s) => s.removeTrack);
-  const isKick = plan.settings.kickKey === track.key;
+  const isCloser = plan.settings.closerKey === track.key;
   const u = plan.settings.units;
   const out = seg.phase !== "race";
 
@@ -84,8 +88,8 @@ function Row({ seg, plan, selected }: { seg: Segment; plan: Plan; selected: bool
       ref={setNodeRef}
       data-key={track.key}
       style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 20 : undefined }}
-      className={`group relative flex items-center gap-2 rounded-2xl border-2 bg-ink py-1.5 pl-1.5 pr-2 transition ${
-        isDragging ? "scale-[1.02] border-acid shadow-[4px_4px_0_0_#000]" : selected ? "border-paper" : "border-transparent hover:border-paper/15"
+      className={`group relative flex items-center gap-2 rounded-xl py-1.5 pl-1.5 pr-2 transition ${
+        isDragging ? "scale-[1.02] bg-ink-2 shadow-[0_12px_30px_rgb(8_10_40/0.4)]" : selected ? "bg-ink/35 ring-1 ring-pink" : "hover:bg-ink/20"
       } ${out ? "opacity-55" : ""}`}
       onClick={() => select(selected ? null : track.key)}
     >
@@ -93,52 +97,52 @@ function Row({ seg, plan, selected }: { seg: Segment; plan: Plan; selected: bool
         {...attributes}
         {...listeners}
         aria-label={`Drag ${track.title}`}
-        className="cursor-grab touch-none px-0.5 text-paper/30 hover:text-paper active:cursor-grabbing"
+        className="cursor-grab touch-none px-0.5 text-pink/30 hover:text-pink active:cursor-grabbing"
         onClick={(e) => e.stopPropagation()}
       >
         ⋮⋮
       </button>
-      <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl border-2 border-black" style={{ background: seg.color }}>
+      <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md" style={{ background: seg.color }}>
         {track.art ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={track.art} alt="" className="h-full w-full object-cover" />
         ) : (
-          <span className="grid h-full place-items-center font-display text-sm font-black text-ink">{seg.index + 1}</span>
+          <span className="grid h-full place-items-center font-mono text-[11px] text-ink">{String(seg.index + 1).padStart(2, "0")}</span>
         )}
         {track.art && <span className="absolute inset-x-0 bottom-0 h-1.5" style={{ background: seg.color }} />}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-bold leading-tight">
-          {isKick && <span className="mr-1 text-acid">⚡</span>}
+        <div className="truncate text-sm font-semibold leading-tight">
+          {isCloser && <span className="mr-1 text-chalk">★</span>}
           {track.title}
         </div>
-        <div className="truncate text-xs text-paper/50">{track.artist}</div>
+        <div className="truncate text-xs text-pink/60">{track.artist}</div>
       </div>
       <div className="w-14 shrink-0 text-right font-mono text-[11px] leading-tight" title={seg.phase === "race" ? `${toUnits(seg.startD, u).toFixed(2)} → ${toUnits(seg.endD, u).toFixed(2)} ${u}` : undefined}>
         {seg.phase === "race" ? (
           <>
-            <div className="font-bold text-paper">
-              <span className="text-[9px] uppercase text-paper/40">{u} </span>
+            <div className="font-bold text-pink">
+              <span className="text-[9px] uppercase text-pink/40">{u} </span>
               {toUnits(seg.startD, u).toFixed(1)}
             </div>
-            <div className="text-paper/40">{seg.partial ? "cut off" : fmtClock(seg.raceStart)}</div>
+            <div className="text-pink/40">{seg.partial ? "cut off" : fmtClock(seg.raceStart)}</div>
           </>
         ) : (
-          <div className="text-paper/40">{seg.phase === "corral" ? "corral" : "post"}</div>
+          <div className="text-pink/40">{seg.phase === "corral" ? "corral" : "post"}</div>
         )}
       </div>
       <BpmChip trackKey={track.key} bpm={track.bpm} />
       <div className="-ml-1 flex items-center">
         <button
-          title={isKick ? "This is your kick song" : "Make this your kick (finisher) song"}
-          aria-pressed={isKick}
+          title={isCloser ? "Your closing track" : "Make this your closing track"}
+          aria-pressed={isCloser}
           onClick={(e) => {
             e.stopPropagation();
-            set({ kickKey: isKick ? null : track.key });
+            set({ closerKey: isCloser ? null : track.key });
           }}
-          className={`grid h-7 w-7 place-items-center rounded-full text-sm transition ${isKick ? "bg-acid text-ink" : "text-paper/30 hover:bg-paper/10 hover:text-acid"}`}
+          className={`grid h-7 w-7 place-items-center rounded-full text-sm transition ${isCloser ? "bg-pink text-ink" : "text-pink/30 hover:bg-pink/10 hover:text-chalk"}`}
         >
-          ⚡
+          ★
         </button>
         <button
           title="Remove from plan"
@@ -146,7 +150,7 @@ function Row({ seg, plan, selected }: { seg: Segment; plan: Plan; selected: bool
             e.stopPropagation();
             removeTrack(track.key);
           }}
-          className="grid h-7 w-6 place-items-center rounded-full text-xs text-paper/20 opacity-0 transition hover:bg-hot/20 hover:text-hot group-hover:opacity-100 focus:opacity-100"
+          className="grid h-7 w-6 place-items-center rounded-full text-xs text-pink/20 opacity-0 transition hover:bg-coral/20 hover:text-coral group-hover:opacity-100 focus:opacity-100"
         >
           ✕
         </button>
@@ -182,14 +186,14 @@ function BpmChip({ trackKey, bpm }: { trackKey: string; bpm?: number }) {
           setVal(bpm ? String(bpm) : "");
           setOpen(!open);
         }}
-        className={`chip font-mono ${bpm ? "text-paper/80" : "border-dashed text-hot"}`}
+        className={`chip font-mono ${bpm ? "text-pink/80" : "border-dashed text-coral"}`}
         title="Edit BPM"
       >
         {bpm ?? "+bpm"}
       </button>
       {open && (
-        <div className="absolute right-0 top-9 z-30 w-52 rounded-2xl border-[3px] border-black bg-paper p-3 text-ink shadow-[4px_4px_0_#000]">
-          <label className="mb-1 block font-display text-[10px] font-black uppercase">BPM</label>
+        <div className="absolute right-0 top-9 z-30 w-52 rounded-xl bg-pink p-3 text-ink shadow-[0_16px_40px_rgb(8_10_40/0.4)]">
+          <label className="label mb-1 block">BPM</label>
           <div className="flex gap-2">
             <input
               autoFocus
@@ -197,15 +201,15 @@ function BpmChip({ trackKey, bpm }: { trackKey: string; bpm?: number }) {
               value={val}
               onChange={(e) => setVal(e.target.value.replace(/\D/g, ""))}
               onKeyDown={(e) => e.key === "Enter" && save()}
-              className="w-16 rounded-lg border-2 border-black px-2 py-1 font-mono font-bold"
+              className="w-16 rounded-lg bg-blush px-2 py-1 font-mono"
             />
-            <button onClick={tap} className="flex-1 rounded-lg border-2 border-black bg-hot font-display text-xs font-black active:scale-95">
-              TAP 🥁
+            <button onClick={tap} className="flex-1 rounded-lg bg-ink text-xs font-semibold text-pink active:scale-95">
+              Tap
             </button>
           </div>
           <p className="mt-1 text-[10px] opacity-60">tap along to the beat, 4+ times</p>
-          <button onClick={save} className="mt-2 w-full rounded-lg border-2 border-black bg-acid py-1 font-display text-xs font-black">
-            SAVE
+          <button onClick={save} className="mt-2 w-full rounded-lg bg-ground py-1.5 text-xs font-semibold text-pink">
+            Save
           </button>
         </div>
       )}

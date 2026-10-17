@@ -37,19 +37,19 @@ export function PlaylistModal({
   const accept = (tracks: Track[], name: string, source: "spotify" | "csv" | "demo") => {
     setTracks(tracks, name, source);
     const withBpm = tracks.filter((t) => t.bpm).length;
-    notify(`🎧 ${tracks.length} songs loaded${withBpm < tracks.length ? ` · ${tracks.length - withBpm} need a BPM (tap to set)` : ""}`);
+    notify(`${tracks.length} songs loaded${withBpm < tracks.length ? ` · ${tracks.length - withBpm} need a BPM (tap to set)` : ""}`);
     onClose();
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Add your playlist" accent="var(--color-hot)" wide>
+    <Modal open={open} onClose={onClose} title="Add your playlist" wide>
       <Tabs
         value={tab || "spotify"}
         onChange={setTab}
         tabs={[
-          { value: "spotify", label: "Spotify", emoji: "💚" },
-          { value: "csv", label: "CSV import", emoji: "📄" },
-          { value: "demo", label: "Sample mix", emoji: "🎲" },
+          { value: "spotify", label: "Spotify" },
+          { value: "csv", label: "CSV import" },
+          { value: "demo", label: "Sample mix" },
         ]}
       />
       {tab === "spotify" && <SpotifyTab onTracks={(t, n) => accept(t, n, "spotify")} />}
@@ -60,7 +60,7 @@ export function PlaylistModal({
             65 running songs, from Empire State of Mind to &apos;Till I Collapse, shuffled so you can see what auto-ramp
             does.
           </p>
-          <button className="btn bg-acid px-6 py-3 text-sm" onClick={() => accept(demoTracks(), DEMO_PLAYLIST_NAME, "demo")}>
+          <button className="btn bg-pink px-6 py-3 text-sm" onClick={() => accept(demoTracks(), DEMO_PLAYLIST_NAME, "demo")}>
             Load the sample mix
           </button>
         </div>
@@ -111,8 +111,8 @@ function SpotifyTab({ onTracks }: { onTracks(t: Track[], name: string): void }) 
     return (
       <div className="space-y-3 text-sm">
         <p className="text-base">Spotify isn&apos;t wired up on this deploy yet.</p>
-        <p className="text-paper/70">
-          Set <code className="rounded bg-ink px-1.5 py-0.5 font-mono text-acid">NEXT_PUBLIC_SPOTIFY_CLIENT_ID</code> (see the
+        <p className="text-pink/70">
+          Set <code className="rounded bg-ink-3 px-1.5 py-0.5 font-mono text-chalk">NEXT_PUBLIC_SPOTIFY_CLIENT_ID</code> (see the
           README). Until then, export your playlist with Exportify and use the CSV tab, or play with the sample mix.
         </p>
       </div>
@@ -123,10 +123,10 @@ function SpotifyTab({ onTracks }: { onTracks(t: Track[], name: string): void }) 
     return (
       <div className="space-y-4">
         <p>Connect Spotify to pull in any playlist you own or collaborate on. We only read playlists, and save new ones when you ask.</p>
-        <button className="btn bg-mint px-6 py-3 text-sm" onClick={() => startSpotifyLogin()}>
+        <button className="btn bg-pink px-6 py-3 text-sm" onClick={() => startSpotifyLogin()}>
           Connect Spotify
         </button>
-        {err && <p className="font-bold text-hot">{err}</p>}
+        {err && <p className="font-bold text-coral">{err}</p>}
       </div>
     );
   }
@@ -145,25 +145,25 @@ function SpotifyTab({ onTracks }: { onTracks(t: Track[], name: string): void }) 
           onChange={(e) => setUrl(e.target.value)}
         />
         {pastedId && (
-          <button className="btn bg-acid px-5 py-2 text-xs" onClick={() => load(pastedId)} disabled={!!busy}>
+          <button className="btn bg-pink px-5 py-2 text-xs" onClick={() => load(pastedId)} disabled={!!busy}>
             Load
           </button>
         )}
       </div>
       {busy && (
-        <p className="animate-pulse font-bold text-acid">
-          {busy === "bpm" ? "🥁 counting beats per minute…" : "📡 pulling tracks…"}
+        <p className="animate-pulse font-bold text-chalk">
+          {busy === "bpm" ? "Looking up tempos…" : "Loading tracks…"}
         </p>
       )}
-      {err && <p className="font-bold text-hot">{err}</p>}
-      {!lists && !err && <p className="animate-pulse text-paper/60">loading your playlists…</p>}
+      {err && <p className="font-bold text-coral">{err}</p>}
+      {!lists && !err && <p className="animate-pulse text-pink/60">loading your playlists…</p>}
       <div className="grid max-h-[50dvh] grid-cols-2 gap-3 overflow-y-auto pr-1 sm:grid-cols-4">
         {shown.map((l) => (
           <button
             key={l.id}
             onClick={() => load(l.id)}
             disabled={!!busy}
-            className="group rounded-2xl border-2 border-paper/10 bg-ink p-2 text-left transition hover:border-hot"
+            className="group rounded-2xl border-2 border-pink/10 bg-ink-3 p-2 text-left transition hover:border-coral"
           >
             <div className="aspect-square overflow-hidden rounded-xl bg-ink-3">
               {l.image ? (
@@ -174,12 +174,12 @@ function SpotifyTab({ onTracks }: { onTracks(t: Track[], name: string): void }) 
               )}
             </div>
             <div className="mt-2 truncate text-sm font-bold">{l.name}</div>
-            <div className="font-mono text-[11px] text-paper/50">{l.count} songs</div>
+            <div className="font-mono text-[11px] text-pink/50">{l.count} songs</div>
           </button>
         ))}
       </div>
       <button
-        className="text-xs text-paper/50 underline hover:text-paper"
+        className="text-xs text-pink/50 underline hover:text-pink"
         onClick={() => {
           spotifyLogout();
           setConnected(false);
@@ -209,17 +209,17 @@ function CsvTab({ onTracks }: { onTracks(t: Track[], name: string): void }) {
     <div className="space-y-4">
       <p>
         Works with{" "}
-        <a className="text-acid underline" href="https://exportify.app" target="_blank" rel="noreferrer">
+        <a className="text-chalk underline" href="https://exportify.app" target="_blank" rel="noreferrer">
           Exportify
         </a>{" "}
         exports (any playlist, even ones you don&apos;t own), or any CSV with title, artist, duration and optional tempo/BPM
         columns.
       </p>
-      <button className="btn bg-paper px-6 py-3 text-sm" onClick={() => input.current?.click()}>
-        📄 Choose CSV
+      <button className="btn bg-pink px-6 py-3 text-sm" onClick={() => input.current?.click()}>
+        Choose CSV
       </button>
       <input ref={input} type="file" accept=".csv,text/csv" hidden onChange={(e) => handle(e.target.files?.[0])} />
-      {err && <p className="font-bold text-hot">{err}</p>}
+      {err && <p className="font-bold text-coral">{err}</p>}
     </div>
   );
 }

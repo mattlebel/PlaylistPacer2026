@@ -153,22 +153,22 @@ export function Preview({ plan, onClose }: { plan: Plan; onClose(): void }) {
   });
 
 
-  const isKick = seg?.track.key === plan.settings.kickKey;
+  const isCloser = seg?.track.key === plan.settings.closerKey;
 
   return (
-    <motion.div className="fixed inset-0 z-50 flex flex-col bg-ink" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+    <motion.div className="fixed inset-0 z-50 flex flex-col bg-ink-3" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <div className="relative min-h-0 flex-1">
         <CourseMap plan={plan} selectedKey={seg?.track.key ?? null} onSelect={() => {}} runnerD={runnerD} follow controls={false} className="absolute inset-0" />
 
         {/* HUD */}
         <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-4 sm:p-6">
-          <div className="stk bg-acid px-4 py-2" style={{ ["--sh" as string]: "#000" }}>
-            <div className="font-display text-[10px] font-black uppercase tracking-widest">{u}</div>
-            <div className="font-display text-4xl font-black tabular-nums leading-none sm:text-6xl">{toUnits(runnerD, u).toFixed(1)}</div>
+          <div className="stk bg-pink px-4 py-2">
+            <div className="font-mono text-[10px] uppercase tracking-widest">{u}</div>
+            <div className="font-display text-4xl font-extrabold tabular-nums leading-none tracking-tight sm:text-6xl">{toUnits(runnerD, u).toFixed(1)}</div>
           </div>
-          <div className="stk bg-paper px-4 py-2 text-right">
-            <div className="font-display text-[10px] font-black uppercase tracking-widest">race clock</div>
-            <div className="font-display text-2xl font-black tabular-nums leading-none sm:text-4xl">{fmtClock(plan.model.timeAt(runnerD), true)}</div>
+          <div className="stk bg-pink px-4 py-2 text-right">
+            <div className="font-mono text-[10px] uppercase tracking-widest">race clock</div>
+            <div className="font-display text-2xl font-extrabold tabular-nums leading-none sm:text-4xl">{fmtClock(plan.model.timeAt(runnerD), true)}</div>
           </div>
         </div>
 
@@ -176,12 +176,12 @@ export function Preview({ plan, onClose }: { plan: Plan; onClose(): void }) {
           {toast && (
             <motion.div
               key={toast.name}
-              className="stk absolute left-1/2 top-28 w-[min(92vw,420px)] -translate-x-1/2 bg-sun px-4 py-3 sm:top-32"
+              className="stk absolute left-1/2 top-28 w-[min(92vw,420px)] -translate-x-1/2 bg-blush px-4 py-3 sm:top-32"
               initial={{ y: -20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: -20, opacity: 0 }}
             >
-              <div className="font-display text-lg font-black uppercase">
+              <div className="font-display text-lg font-extrabold">
                 {toast.emoji} {toast.name}
               </div>
               <div className="text-sm font-semibold">{toast.vibe}</div>
@@ -190,13 +190,13 @@ export function Preview({ plan, onClose }: { plan: Plan; onClose(): void }) {
         </AnimatePresence>
 
         {done && (
-          <div className="absolute inset-0 grid place-items-center bg-black/50">
-            <div className="stk bg-hot p-8 text-center">
-              <div className="font-display text-5xl font-black">🏁 FINISHED</div>
-              <p className="mt-2 font-bold">{fmtClock(plan.model.goal, true)} of music, mile by mile.</p>
+          <div className="absolute inset-0 grid place-items-center bg-ink/50">
+            <div className="stk bg-pink p-8 text-center">
+              <div className="font-display text-5xl font-extrabold tracking-tight">Finished</div>
+              <p className="mt-2 font-medium">{fmtClock(plan.model.goal, true)} of music, mile by mile.</p>
               <div className="mt-4 flex justify-center gap-3">
                 <button
-                  className="btn bg-paper px-5 py-2 text-xs"
+                  className="btn bg-pink px-5 py-2 text-xs"
                   onClick={() => {
                     seenLandmarks.current.clear();
                     setDone(false);
@@ -208,7 +208,7 @@ export function Preview({ plan, onClose }: { plan: Plan; onClose(): void }) {
                 >
                   ↺ again
                 </button>
-                <button className="btn bg-acid px-5 py-2 text-xs" onClick={onClose}>
+                <button className="btn bg-ink px-5 py-2 text-xs text-pink" onClick={onClose}>
                   done
                 </button>
               </div>
@@ -218,7 +218,7 @@ export function Preview({ plan, onClose }: { plan: Plan; onClose(): void }) {
       </div>
 
       {/* Now playing deck */}
-      <div className="border-t-[3px] border-black bg-ink-2 p-3 sm:p-5">
+      <div className="bg-ground p-3 sm:p-5">
         <div className="mx-auto max-w-6xl">
           <div className="hidden md:block">
             <Strip plan={plan} selectedKey={seg?.track.key ?? null} onSelect={() => {}} runnerD={runnerD} />
@@ -228,35 +228,35 @@ export function Preview({ plan, onClose }: { plan: Plan; onClose(): void }) {
               key={seg?.track.key}
               initial={{ scale: 0.85, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border-[3px] border-black sm:h-20 sm:w-20"
+              className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md sm:h-20 sm:w-20"
               style={{ background: seg?.color }}
             >
               {seg?.track.art ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={seg.track.art} alt="" className="h-full w-full object-cover" />
               ) : (
-                <span className="grid h-full place-items-center text-3xl">{isKick ? "⚡" : "♪"}</span>
+                <span className="grid h-full place-items-center text-3xl text-ink">{isCloser ? "★" : "♪"}</span>
               )}
             </motion.div>
             <div className="min-w-0 flex-1">
-              {isKick && <div className="font-display text-xs font-black uppercase text-acid">⚡ The kick</div>}
-              <div className="truncate font-display text-xl font-black sm:text-2xl">{seg?.track.title}</div>
-              <div className="truncate text-sm text-paper/60">
+              {isCloser && <div className="label text-chalk">★ Closing track</div>}
+              <div className="truncate font-display text-xl font-bold tracking-tight sm:text-2xl">{seg?.track.title}</div>
+              <div className="truncate text-sm text-pink/60">
                 {seg?.track.artist} · <span className="font-mono">{seg?.track.bpm ?? "?"} bpm</span> · song {idx + 1}/{race.length}
               </div>
             </div>
             <div className={hasSpotify ? "w-full sm:w-72" : "hidden"} ref={embedBox} />
             <div className="flex items-center gap-2">
-              <button className="grid h-11 w-11 place-items-center rounded-full border-2 border-paper/20 hover:border-paper" onClick={() => jump(-1)} aria-label="Previous song">
+              <button className="grid h-11 w-11 place-items-center rounded-full border border-pink/30 hover:border-pink" onClick={() => jump(-1)} aria-label="Previous song">
                 ⏮
               </button>
-              <button className="btn h-14 w-14 bg-acid text-xl" onClick={() => setPlaying((p) => !p)} aria-label={playing ? "Pause" : "Play"}>
+              <button className="btn h-14 w-14 bg-pink text-xl" onClick={() => setPlaying((p) => !p)} aria-label={playing ? "Pause" : "Play"}>
                 {playing ? "❚❚" : "▶"}
               </button>
-              <button className="grid h-11 w-11 place-items-center rounded-full border-2 border-paper/20 hover:border-paper" onClick={() => jump(1)} aria-label="Next song">
+              <button className="grid h-11 w-11 place-items-center rounded-full border border-pink/30 hover:border-pink" onClick={() => jump(1)} aria-label="Next song">
                 ⏭
               </button>
-              <button className="grid h-11 w-11 place-items-center rounded-full border-2 border-paper/20 hover:border-paper" onClick={() => setMuted((m) => !m)} aria-label={muted ? "Unmute" : "Mute"}>
+              <button className="grid h-11 w-11 place-items-center rounded-full border border-pink/30 hover:border-pink" onClick={() => setMuted((m) => !m)} aria-label={muted ? "Unmute" : "Mute"}>
                 {muted ? "🔇" : "🔊"}
               </button>
             </div>
@@ -271,11 +271,11 @@ export function Preview({ plan, onClose }: { plan: Plan; onClose(): void }) {
                 { value: "12", label: "12s" },
               ]}
             />
-            <button className="btn bg-hot px-5 py-2.5 text-xs" onClick={onClose}>
-              exit ✕
+            <button className="btn btn-ghost px-5 py-2.5 text-xs" onClick={onClose}>
+              Exit
             </button>
           </div>
-          {!hasSpotify && <p className="mt-2 text-xs text-paper/40">Sample/CSV songs play a synth beat at each song&apos;s BPM. Import from Spotify to hear the real tracks.</p>}
+          {!hasSpotify && <p className="mt-2 text-xs text-pink/40">Sample/CSV songs play a synth beat at each song&apos;s BPM. Import from Spotify to hear the real tracks.</p>}
         </div>
       </div>
     </motion.div>

@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { loadPreset, PRESET_LIST } from "./courses";
-import { DEMO_KICK_TITLE, DEMO_PLAYLIST_NAME, demoTracks } from "./demo";
+import { DEMO_CLOSER_TITLE, DEMO_PLAYLIST_NAME, demoTracks } from "./demo";
 import { METERS_PER_MILE } from "./geo";
 import type { Course, PlanSettings, Track } from "./types";
 
@@ -31,8 +31,8 @@ const DEFAULTS: PlanSettings = {
   negativeSplit: 0.03,
   crossfadeSec: 0,
   startOffsetSec: 60,
-  kickKey: null,
-  kickTargetFromEnd: 0.5 * METERS_PER_MILE,
+  closerKey: null,
+  closerTargetFromEnd: 0.5 * METERS_PER_MILE,
   colorMode: "bpm",
 };
 
@@ -59,14 +59,14 @@ export const useKD = create<State>()(
           tracks,
           playlistName,
           playlistSource,
-          settings: { ...st.settings, kickKey: tracks.at(-1)?.key ?? null },
+          settings: { ...st.settings, closerKey: tracks.at(-1)?.key ?? null },
         })),
       reorder: (tracks) => set({ tracks }),
       updateTrack: (key, patch) => set((st) => ({ tracks: st.tracks.map((t) => (t.key === key ? { ...t, ...patch } : t)) })),
       removeTrack: (key) =>
         set((st) => ({
           tracks: st.tracks.filter((t) => t.key !== key),
-          settings: st.settings.kickKey === key ? { ...st.settings, kickKey: null } : st.settings,
+          settings: st.settings.closerKey === key ? { ...st.settings, closerKey: null } : st.settings,
         })),
       set: (patch) => set((st) => ({ settings: { ...st.settings, ...patch } })),
       select: (selectedKey) => set({ selectedKey }),
@@ -82,13 +82,13 @@ export const useKD = create<State>()(
           settings: {
             ...DEFAULTS,
             units: get().settings.units,
-            kickKey: tracks.find((t) => t.title === DEMO_KICK_TITLE)?.key ?? null,
+            closerKey: tracks.find((t) => t.title === DEMO_CLOSER_TITLE)?.key ?? null,
           },
         });
       },
     }),
     {
-      name: "playlistpacer.v1",
+      name: "playlistpacer.v2",
       partialize: ({ course, tracks, playlistName, playlistSource, settings }) => ({
         course,
         tracks,

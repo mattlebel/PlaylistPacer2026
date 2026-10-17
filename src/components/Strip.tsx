@@ -72,7 +72,7 @@ export function Strip({
   const ticks: number[] = [];
   for (let k = 0; k <= totalUnits + 1e-6; k += tickStep) ticks.push(k);
 
-  const kickX = x(Math.max(0, D - settings.kickTargetFromEnd));
+  const closerX = x(Math.max(0, D - settings.closerTargetFromEnd));
   const hoverSeg = hover != null ? race.find((s) => hover >= s.startD && hover <= s.endD) : undefined;
 
   return (
@@ -95,19 +95,19 @@ export function Strip({
             <path d={areaPath} />
           </clipPath>
           <pattern id={`hatch-${uid}`} width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-            <rect width="4" height="8" fill="#ff3da5" opacity="0.35" />
+            <rect width="4" height="8" fill="#F7D3D8" opacity="0.35" />
           </pattern>
         </defs>
 
-        {/* kick zone */}
-        <rect x={kickX} y={BAND_Y - 18} width={x(D) - kickX} height={ELE_BOT - BAND_Y + 18} fill={`url(#hatch-${uid})`} />
-        <text x={x(D) - 4} y={BAND_Y - 6} textAnchor="end" className="fill-hot font-display text-[10px] font-black uppercase">
-          kick zone
+        {/* closer zone */}
+        <rect x={closerX} y={BAND_Y - 18} width={x(D) - closerX} height={ELE_BOT - BAND_Y + 18} fill={`url(#hatch-${uid})`} />
+        <text x={x(D) - 4} y={BAND_Y - 6} textAnchor="end" className="fill-pink font-mono text-[10px] uppercase">
+          closing track
         </text>
 
         {/* elevation painted by song */}
         <g clipPath={`url(#clip-${uid})`}>
-          <rect x={0} y={ELE_TOP - 10} width={W} height={ELE_BOT} fill="#201e29" />
+          <rect x={0} y={ELE_TOP - 10} width={W} height={ELE_BOT} fill="#16288C" />
           {race.map((s) => (
             <rect
               key={s.track.key}
@@ -120,14 +120,14 @@ export function Strip({
             />
           ))}
         </g>
-        <path d={linePath} fill="none" stroke="#fff3d6" strokeWidth={2} />
+        <path d={linePath} fill="none" stroke="#F7D3D8" strokeWidth={2} />
 
         {/* song bands */}
         {race.map((s) => {
           const x0 = x(s.startD);
           const w = Math.max(1, x(s.endD) - x0);
           const sel = s.track.key === selectedKey;
-          const isKick = s.track.key === settings.kickKey;
+          const isCloser = s.track.key === settings.closerKey;
           return (
             <g key={s.track.key} onClick={() => onSelect(sel ? null : s.track.key)} className="cursor-pointer">
               <rect
@@ -137,15 +137,15 @@ export function Strip({
                 height={sel ? BAND_H + 6 : BAND_H}
                 rx={6}
                 fill={s.color}
-                stroke="#000"
+                stroke="#1B32A8"
                 strokeWidth={sel ? 3 : 2}
                 opacity={selectedKey && !sel ? 0.45 : 1}
               />
               {w > 46 && (
                 <foreignObject x={x0 + 4} y={BAND_Y + 3} width={w - 8} height={BAND_H - 6} pointerEvents="none">
                   <div className="flex h-full flex-col justify-center overflow-hidden leading-tight text-ink">
-                    <span className="truncate text-[11px] font-black">
-                      {isKick ? "⚡ " : ""}
+                    <span className="truncate text-[11px] font-extrabold">
+                      {isCloser ? "★ " : ""}
                       {s.track.title}
                     </span>
                     {w > 70 && <span className="truncate font-mono text-[9px] font-bold opacity-70">{s.track.bpm ? `${s.track.bpm} bpm` : "— bpm"}</span>}
@@ -159,7 +159,7 @@ export function Strip({
         {/* landmarks */}
         {course.landmarks.map((l) => (
           <g key={l.name}>
-            <line x1={x(l.d)} x2={x(l.d)} y1={BAND_Y + BAND_H + 4} y2={y(pointAt(course, l.d).ele)} stroke="#fff3d6" strokeOpacity={0.35} strokeDasharray="2 3" />
+            <line x1={x(l.d)} x2={x(l.d)} y1={BAND_Y + BAND_H + 4} y2={y(pointAt(course, l.d).ele)} stroke="#F7D3D8" strokeOpacity={0.35} strokeDasharray="2 3" />
             <text x={x(l.d)} y={BAND_Y + BAND_H + 20} textAnchor="middle" fontSize={14}>
               <title>{l.name}</title>
               {l.emoji}
@@ -168,43 +168,43 @@ export function Strip({
         ))}
 
         {/* axis */}
-        <line x1={x(0)} x2={x(D)} y1={ELE_BOT} y2={ELE_BOT} stroke="#fff3d6" strokeOpacity={0.3} />
+        <line x1={x(0)} x2={x(D)} y1={ELE_BOT} y2={ELE_BOT} stroke="#F7D3D8" strokeOpacity={0.3} />
         {ticks.map((k) => {
           const tx = x(Math.min(D, (k / totalUnits) * D));
           return (
             <g key={k}>
-              <line x1={tx} x2={tx} y1={ELE_BOT} y2={ELE_BOT + 5} stroke="#fff3d6" strokeOpacity={0.5} />
-              <text x={tx} y={ELE_BOT + 18} textAnchor="middle" className="fill-paper/60 font-mono text-[10px]">
+              <line x1={tx} x2={tx} y1={ELE_BOT} y2={ELE_BOT + 5} stroke="#F7D3D8" strokeOpacity={0.5} />
+              <text x={tx} y={ELE_BOT + 18} textAnchor="middle" className="fill-pink/60 font-mono text-[10px]">
                 {k}
               </text>
             </g>
           );
         })}
-        <text x={x(D)} y={ELE_BOT + 34} textAnchor="end" className="fill-paper/40 font-mono text-[10px] uppercase">
+        <text x={x(D)} y={ELE_BOT + 34} textAnchor="end" className="fill-pink/40 font-mono text-[10px] uppercase">
           {u}
         </text>
 
         {/* cursor */}
         {hover != null && (
-          <line x1={x(hover)} x2={x(hover)} y1={BAND_Y - 8} y2={ELE_BOT} stroke="#d4ff3a" strokeWidth={1.5} />
+          <line x1={x(hover)} x2={x(hover)} y1={BAND_Y - 8} y2={ELE_BOT} stroke="#FFFFFF" strokeWidth={1.5} />
         )}
         {runnerD != null && (
           <g>
-            <line x1={x(runnerD)} x2={x(runnerD)} y1={BAND_Y - 12} y2={ELE_BOT} stroke="#d4ff3a" strokeWidth={3} />
-            <circle cx={x(runnerD)} cy={y(pointAt(course, runnerD).ele)} r={7} fill="#d4ff3a" stroke="#000" strokeWidth={3} />
+            <line x1={x(runnerD)} x2={x(runnerD)} y1={BAND_Y - 12} y2={ELE_BOT} stroke="#FFFFFF" strokeWidth={3} />
+            <circle cx={x(runnerD)} cy={y(pointAt(course, runnerD).ele)} r={7} fill="#FFFFFF" stroke="#1B32A8" strokeWidth={3} />
           </g>
         )}
       </svg>
 
       {hover != null && (
         <div
-          className="pointer-events-none absolute top-0 z-10 rounded-xl border-2 border-black bg-paper px-2.5 py-1.5 text-xs text-ink shadow-[3px_3px_0_#000]"
+          className="pointer-events-none absolute top-0 z-10 rounded-xl bg-pink px-2.5 py-1.5 text-xs text-ink"
           style={{ left: Math.min(W - 190, Math.max(0, x(hover) + 10)), width: 180 }}
         >
           <div className="font-mono font-bold">
             {toUnits(hover, u).toFixed(2)} {u} · {fmtClock(model.timeAt(hover))}
           </div>
-          <div className="truncate font-bold">{hoverSeg ? `♪ ${hoverSeg.track.title}` : "🔇 silence"}</div>
+          <div className="truncate font-bold">{hoverSeg ? hoverSeg.track.title : "silence"}</div>
           <div className="font-mono text-[10px] opacity-70">elev {Math.round(pointAt(course, hover).ele)} m</div>
         </div>
       )}

@@ -106,7 +106,7 @@ const PRESETS: Preset[] = [
       [2.55, "Harlem Hill", "⛰️", "THE hill. queue a banger at the base."],
       [4.5, "Strawberry Fields", "🍓", "imagine a negative split."],
       [5.0, "Tavern on the Green", "🍽️", "marathon finish ghosts."],
-      [5.4, "Central Park South", "🏙️", "rolling home. drop the kick."],
+      [5.4, "Central Park South", "🏙️", "rolling home. cue the closing track."],
     ],
   },
   {

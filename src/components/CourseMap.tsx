@@ -10,7 +10,7 @@ const STYLE_URL = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.j
 const FALLBACK: StyleSpecification = {
   version: 8,
   sources: {},
-  layers: [{ id: "bg", type: "background", paint: { "background-color": "#121118" } }],
+  layers: [{ id: "bg", type: "background", paint: { "background-color": "#16288C" } }],
 };
 
 async function loadStyle(): Promise<StyleSpecification | string> {
@@ -85,21 +85,21 @@ export function CourseMap({
           type: "line",
           source: "course",
           layout: { "line-cap": "round", "line-join": "round" },
-          paint: { "line-color": "#fff3d6", "line-width": 16, "line-opacity": 0.08, "line-blur": 6 },
+          paint: { "line-color": "#F7D3D8", "line-width": 16, "line-opacity": 0.08, "line-blur": 6 },
         });
         m.addLayer({
           id: "course-base",
           type: "line",
           source: "course",
           layout: { "line-cap": "round", "line-join": "round" },
-          paint: { "line-color": "#fff3d6", "line-width": 2, "line-opacity": 0.35, "line-dasharray": [2, 2] },
+          paint: { "line-color": "#F7D3D8", "line-width": 2, "line-opacity": 0.35, "line-dasharray": [2, 2] },
         });
         m.addLayer({
           id: "seg-casing",
           type: "line",
           source: "segments",
           layout: { "line-cap": "round", "line-join": "round" },
-          paint: { "line-color": "#000", "line-width": ["case", ["get", "selected"], 15, 10] },
+          paint: { "line-color": "#0E0E14", "line-width": ["case", ["get", "selected"], 15, 10] },
         });
         m.addLayer({
           id: "seg",
@@ -152,20 +152,20 @@ export function CourseMap({
         k * unit,
         markerEl(
           `${k}`,
-          "grid h-5 min-w-5 place-items-center rounded-full border-2 border-black bg-paper px-1 font-mono text-[10px] font-bold text-ink",
+          "grid h-5 min-w-5 place-items-center rounded-full bg-ink px-1 font-mono text-[9px] text-pink ring-1 ring-pink/40",
         ),
       );
     }
     for (const l of c.landmarks) {
       const el = markerEl(
         `<span class="text-lg leading-none">${l.emoji}</span>`,
-        "grid h-8 w-8 place-items-center rounded-full border-2 border-black bg-ink-2 shadow-[2px_2px_0_#000] cursor-help",
+        "grid h-8 w-8 place-items-center rounded-full bg-ink/85 ring-1 ring-pink/30 cursor-help",
       );
       el.title = `${l.name} · ${fmtDist(l.d, plan.settings.units, 1)} ${plan.settings.units}`;
       add(l.d, el);
     }
-    add(0, markerEl("START", "rounded-full border-2 border-black bg-acid px-2 py-0.5 font-display text-[10px] font-black text-ink shadow-[2px_2px_0_#000]"));
-    add(c.distance, markerEl("🏁 FINISH", "rounded-full border-2 border-black bg-hot px-2 py-0.5 font-display text-[10px] font-black text-ink shadow-[2px_2px_0_#000]"));
+    add(0, markerEl("start", "rounded-full bg-pink px-2.5 py-0.5 font-mono text-[10px] text-ink shadow-md"));
+    add(c.distance, markerEl("finish", "rounded-full bg-chalk px-2.5 py-0.5 font-mono text-[10px] text-ink shadow-md"));
   }, [plan.course, plan.settings.units, ready]);
 
   // Song segments.
@@ -199,7 +199,7 @@ export function CourseMap({
     const pos = makePointLookup(plan.course)(runnerD);
     if (!runner.current) {
       const el = markerEl(
-        `<span class="absolute inset-0 animate-ping rounded-full bg-acid/70"></span><span class="relative block h-5 w-5 rounded-full border-[3px] border-black bg-acid"></span>`,
+        `<span class="absolute inset-0 animate-ping rounded-full bg-chalk/60"></span><span class="relative block h-5 w-5 rounded-full border-[3px] border-ink bg-chalk"></span>`,
         "relative h-5 w-5",
       );
       runner.current = new Marker({ element: el }).setLngLat(pos).addTo(m);
@@ -210,7 +210,7 @@ export function CourseMap({
   return (
     <div className={`overflow-hidden ${className}`}>
       <div ref={box} className="h-full w-full" />
-      {!ready && <div className="absolute inset-0 grid place-items-center text-paper/40">warming up the map…</div>}
+      {!ready && <div className="absolute inset-0 grid place-items-center text-pink/40">warming up the map…</div>}
     </div>
   );
 }

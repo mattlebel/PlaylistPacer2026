@@ -60,9 +60,9 @@ export interface PlanSettings {
   /** Seconds between pressing play and crossing the start mat. */
   startOffsetSec: number;
   /** key of the track locked as the finisher. */
-  kickKey: string | null;
-  /** Meters before the finish where the kick song should start. */
-  kickTargetFromEnd: number;
+  closerKey: string | null;
+  /** Meters before the finish where the closer song should start. */
+  closerTargetFromEnd: number;
   colorMode: "bpm" | "rainbow";
 }
 

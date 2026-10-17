@@ -1,19 +1,17 @@
 import type { Metadata, Viewport } from "next";
-import "@fontsource-variable/unbounded";
-import "@fontsource-variable/space-grotesk";
-import "@fontsource/jetbrains-mono/500.css";
-import "@fontsource/jetbrains-mono/700.css";
+import "@fontsource-variable/bricolage-grotesque";
+import "@fontsource-variable/martian-mono";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Playlist Pacer — time the drop, own the kick",
+  title: "Playlist Pacer — your race, sequenced like an album",
   description:
     "Map your race playlist onto the course. See which song hits at the Queensboro Bridge, ramp the BPM, and land your finishing banger on the last stretch.",
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b0b0f",
+  themeColor: "#2340c8",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

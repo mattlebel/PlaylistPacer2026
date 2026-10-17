@@ -1,8 +1,9 @@
-# Playlist Pacer — time the drop, own the kick
+# Playlist Pacer — your race, sequenced like an album
 
 Plan your race playlist on the actual course. Drop in a course and a playlist, set a goal time,
-and Playlist Pacer paints every song onto the miles it covers. You see what's playing on the Queensboro
-Bridge, you can ramp the BPM from easy to fast, and it lands your finishing song on the final stretch.
+and Playlist Pacer puts every song on the miles it covers: Side A for the first half, Side B for the
+second. You see what's playing on the Queensboro Bridge, you can build the tempo from easy to fast, and it
+lines up your closing track with the final stretch.
 
 Built for road racers, NYRR regulars and the r/runnyc crowd.
 
@@ -13,15 +14,15 @@ Built for road racers, NYRR regulars and the r/runnyc crowd.
 - **Playlists**: Spotify (PKCE, your own and collaborative playlists), Exportify/any CSV, or a 65-song sample mix.
 - **Pacing models**: even, negative split, hill-smart (grade-adjusted), and **👻 ghost**, which replays the
   pace curve of a past activity (Strava, or a GPX with timestamps), scaled to your new goal.
-- **The strip**: an elevation profile with song bands, landmarks, a kick zone and hover-to-scrub.
-- **Kick lander**: mark a finisher ⚡ and choose where it should drop. It tells you if it's early or late, and
+- **Course chart**: an elevation profile with song bands, landmarks, the closing stretch and hover-to-scrub.
+- **Closing track**: mark a finisher ★ and choose where it should start. It tells you if it's early or late, and
   offers a one-click fix (cut, move or swap) that keeps the BPM ramp intact where it can.
-- **Auto-ramp**: sorts songs slow → fast and places the kick.
+- **Sort slow → fast**: orders songs by tempo and places the closing track.
 - **Real-runner math**: Spotify crossfade, time in the corral before the start mat, and official-distance
   snapping (your watch will say 26.5).
 - **Preview course**: a fly-through with a runner dot that follows the course. Spotify tracks play through the official embed;
   sample/CSV songs play a synth beat at each song's BPM.
-- **Share**: a story-sized PNG poster, a plain-text cue sheet, and "save this order" as a new Spotify playlist.
+- **Share**: an album-sleeve PNG poster, a plain-text cue sheet, and "save this order" as a new Spotify playlist.
 
 Plans live in `localStorage`. There's no database.
 
@@ -67,5 +68,5 @@ Free instances sleep after ~15 minutes idle, so the first load after that takes 
 Next.js 16 (App Router) · React 19 · Tailwind v4 · MapLibre GL v6 (CARTO dark tiles, no key) · motion ·
 dnd-kit · zustand · html-to-image.
 
-Code map: `src/lib/pace.ts` (pacing models), `src/lib/plan.ts` (song → distance mapping, kick
+Code map: `src/lib/pace.ts` (pacing models), `src/lib/plan.ts` (song → distance mapping, closing-track
 fixes, auto-ramp), `src/lib/courses/` (presets), `src/app/api/strava/*` (OAuth + import), `src/components/*` (UI).

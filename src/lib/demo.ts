@@ -71,7 +71,7 @@ const RAW: [string, string, number, number][] = [
 ];
 
 export const DEMO_PLAYLIST_NAME = "sub-4 or bust (sample mix)";
-export const DEMO_KICK_TITLE = "'Till I Collapse";
+export const DEMO_CLOSER_TITLE = "'Till I Collapse";
 
 export function demoTracks(): Track[] {
   return RAW.map(([title, artist, durationSec, bpm], i) => ({

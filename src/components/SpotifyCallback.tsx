@@ -18,7 +18,7 @@ export function SpotifyCallback() {
   }, []);
   return (
     <main className="grid min-h-dvh place-items-center p-6">
-      <p className="animate-pulse font-display text-2xl font-black uppercase">{msg}</p>
+      <p className="animate-pulse font-display text-2xl font-extrabold">{msg}</p>
     </main>
   );
 }

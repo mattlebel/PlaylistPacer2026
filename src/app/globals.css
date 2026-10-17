@@ -1,29 +1,28 @@
 @import "tailwindcss";
 
+/*
+ * Liner Notes: the race is an album. Cobalt sleeve ground, soft pink type,
+ * ink for anything printed on a pink "sleeve" card. Pastel accents only for state.
+ */
 @theme {
-  --color-ink: #0b0b0f;
-  --color-ink-2: #15141b;
-  --color-ink-3: #201e29;
-  --color-paper: #fff3d6;
-  --color-acid: #d4ff3a;
-  --color-hot: #ff3da5;
-  --color-ice: #3ddcff;
-  --color-tang: #ff7a1a;
-  --color-lilac: #b69cff;
-  --color-sun: #ffe53d;
-  --color-mint: #2bff88;
-  --color-mute: #8a8797;
+  --color-ground: #2340c8;
+  --color-ink: #0e0e14;
+  --color-ink-2: #1b32a8;
+  --color-ink-3: #16288c;
+  --color-pink: #f7d3d8;
+  --color-blush: #fbe6e9;
+  --color-chalk: #ffffff;
+  --color-coral: #ff8fa3;
+  --color-sky: #9db8ff;
+  --color-lav: #c3b5f7;
+  --color-butter: #ffe08a;
+  --color-peach: #ffb38a;
+  --color-mint: #8fe3c0;
+  --color-mute: #a9b3e8;
 
-  --font-display: "Unbounded Variable", "Arial Black", system-ui, sans-serif;
-  --font-sans: "Space Grotesk Variable", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
-
-  --animate-marquee: marquee 70s linear infinite;
-
-  @keyframes marquee {
-    from { transform: translateX(0); }
-    to { transform: translateX(-50%); }
-  }
+  --font-display: "Bricolage Grotesque Variable", "Helvetica Neue", system-ui, sans-serif;
+  --font-sans: "Bricolage Grotesque Variable", "Helvetica Neue", system-ui, sans-serif;
+  --font-mono: "Martian Mono Variable", ui-monospace, monospace;
 }
 
 :root {
@@ -32,8 +31,8 @@
 
 html,
 body {
-  background: var(--color-ink);
-  color: var(--color-paper);
+  background: var(--color-ground);
+  color: var(--color-pink);
 }
 
 body {
@@ -42,120 +41,111 @@ body {
   overflow-x: hidden;
 }
 
-/* Background: glow blobs + a faint "track lane" grid + film grain. */
+/* A soft vignette, like light falling on a record sleeve. */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
-  z-index: -2;
+  z-index: -1;
   background:
-    radial-gradient(40vw 40vw at 85% -5%, rgb(255 61 165 / 0.14), transparent 70%),
-    radial-gradient(45vw 45vw at -10% 30%, rgb(61 90 254 / 0.14), transparent 70%),
-    radial-gradient(35vw 35vw at 60% 110%, rgb(212 255 58 / 0.07), transparent 70%),
-    linear-gradient(rgb(255 243 214 / 0.035) 1px, transparent 1px) 0 0 / 100% 56px,
-    var(--color-ink);
-}
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  pointer-events: none;
-  opacity: 0.035;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    radial-gradient(70vw 50vw at 80% -10%, rgb(255 255 255 / 0.08), transparent 70%),
+    radial-gradient(60vw 50vw at 0% 110%, rgb(14 14 20 / 0.25), transparent 70%),
+    var(--color-ground);
 }
 
 @layer components {
-  /* Bright cards: solid fill, black outline, small hard shadow. */
+  /* A printed "sleeve" card: solid pastel fill, ink type, soft drop shadow. */
   .stk {
-    border: 2px solid #000;
-    border-radius: 20px;
-    box-shadow: 4px 4px 0 0 var(--sh, #000);
-    color: #0b0b0f;
+    border-radius: 14px;
+    box-shadow: 0 18px 40px rgb(8 10 40 / 0.3);
+    color: var(--color-ink);
   }
   .panel {
-    background: var(--color-ink-2);
-    border: 2px solid rgb(255 243 214 / 0.12);
-    border-radius: 26px;
+    background: rgb(14 14 20 / 0.22);
+    border-radius: 18px;
   }
   .btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    border: 2px solid #000;
     border-radius: 999px;
     font-family: var(--font-display);
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-    box-shadow: 3px 3px 0 0 var(--sh, #000);
-    transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s;
+    font-weight: 700;
+    color: var(--color-ink);
+    transition: transform 0.15s ease, filter 0.15s ease, background-color 0.15s;
     cursor: pointer;
     user-select: none;
-    color: #0b0b0f;
   }
   .btn:hover {
-    transform: translate(-1px, -1px);
-    box-shadow: 4px 4px 0 0 var(--sh, #000);
+    transform: translateY(-1px);
+    filter: brightness(1.04);
   }
   .btn:active {
-    transform: translate(2px, 2px);
-    box-shadow: 0 0 0 0 var(--sh, #000);
+    transform: translateY(1px);
   }
   .btn:disabled {
-    filter: grayscale(1) brightness(0.7);
+    opacity: 0.5;
     cursor: not-allowed;
     transform: none;
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--color-pink);
+    box-shadow: inset 0 0 0 2px var(--color-pink);
   }
   .chip {
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
     border-radius: 999px;
-    padding: 0.2rem 0.65rem;
+    padding: 0.2rem 0.7rem;
     font-size: 0.75rem;
-    font-weight: 700;
-    border: 2px solid currentColor;
+    font-weight: 600;
+    border: 1px solid currentColor;
     white-space: nowrap;
   }
   .outline-text {
     color: transparent;
-    -webkit-text-stroke: 2px var(--color-paper);
+    -webkit-text-stroke: 2px var(--color-pink);
   }
   .field {
     width: 100%;
-    background: var(--color-ink);
-    border: 2px solid rgb(255 243 214 / 0.18);
-    border-radius: 14px;
+    background: var(--color-ink-3);
+    border: 1px solid rgb(247 211 216 / 0.25);
+    border-radius: 12px;
     padding: 0.7rem 0.9rem;
-    color: var(--color-paper);
+    color: var(--color-pink);
     outline: none;
     transition: border-color 0.15s, box-shadow 0.15s;
   }
+  .field::placeholder {
+    color: rgb(247 211 216 / 0.5);
+  }
   .field:focus {
-    border-color: var(--color-acid);
-    box-shadow: 0 0 0 4px rgb(212 255 58 / 0.18);
+    border-color: var(--color-pink);
+    box-shadow: 0 0 0 3px rgb(247 211 216 / 0.2);
+  }
+  .label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.75;
   }
 }
 
 :focus-visible {
-  outline: 3px solid var(--color-acid);
+  outline: 2px solid var(--color-chalk);
   outline-offset: 3px;
 }
 
-.font-display {
-  font-variation-settings: "wght" 800;
-}
-
-/* MapLibre popups in house style */
+/* MapLibre popups + attribution in house style */
 .maplibregl-popup-content {
-  background: var(--color-paper) !important;
-  color: #0b0b0f !important;
-  border: 3px solid #000;
-  border-radius: 16px !important;
-  box-shadow: 4px 4px 0 #000 !important;
+  background: var(--color-pink) !important;
+  color: var(--color-ink) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 12px 30px rgb(8 10 40 / 0.35) !important;
   padding: 10px 12px !important;
   font-family: var(--font-sans);
 }
@@ -163,7 +153,7 @@ body::after {
   display: none;
 }
 .maplibregl-ctrl-attrib {
-  background: rgb(11 11 15 / 0.7) !important;
+  background: rgb(14 14 20 / 0.6) !important;
   color: var(--color-mute) !important;
   font-size: 10px;
 }
@@ -172,12 +162,12 @@ body::after {
 }
 
 ::selection {
-  background: var(--color-hot);
-  color: #000;
+  background: var(--color-pink);
+  color: var(--color-ink);
 }
 
 input[type="range"] {
-  accent-color: var(--color-acid);
+  accent-color: var(--color-pink);
 }
 
 @media (prefers-reduced-motion: reduce) {

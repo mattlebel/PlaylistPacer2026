@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { buildPaceModel } from "./pace";
-import { computeSegments, kickReport, landmarkHits, playlistStats } from "./plan";
+import { computeSegments, closerReport, landmarkHits, playlistStats } from "./plan";
 import { useKD } from "./store";
 
 export function usePlan() {
@@ -20,7 +20,7 @@ export function usePlan() {
       settings,
       model,
       segments,
-      kick: kickReport(tracks, segments, settings, model),
+      closer: closerReport(tracks, segments, settings, model),
       hits: landmarkHits(course.landmarks, segments),
       stats: playlistStats(tracks, segments, settings, model),
     };

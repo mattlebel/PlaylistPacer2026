@@ -1,19 +1,19 @@
 import type { PaceModel } from "./pace";
 import type { Landmark, PlanSettings, Segment, Track } from "./types";
 
-export const NEON = ["#D4FF3A", "#FF3DA5", "#3DDCFF", "#FF7A1A", "#B69CFF", "#FFE53D", "#2BFF88", "#FF5E5E"];
+export const PASTELS = ["#F7D3D8", "#9DB8FF", "#FFE08A", "#C3B5F7", "#8FE3C0", "#FFB38A", "#FF8FA3", "#FFFFFF"];
 
 const HEAT: [number, [number, number, number]][] = [
-  [90, [61, 90, 254]],
-  [125, [182, 156, 255]],
-  [150, [255, 61, 165]],
-  [168, [255, 122, 26]],
-  [185, [212, 255, 58]],
+  [90, [110, 132, 255]],
+  [125, [195, 181, 247]],
+  [150, [247, 211, 216]],
+  [168, [255, 143, 163]],
+  [185, [255, 92, 122]],
 ];
 
-/** Slow songs read cold (blue), bangers read hot (pink -> orange -> acid). */
+/** Slow songs read cool (periwinkle), fast songs read warm (pink -> coral). */
 export function bpmColor(bpm?: number) {
-  if (!bpm) return "#8A8797";
+  if (!bpm) return "#7C86C4";
   const b = Math.max(HEAT[0][0], Math.min(HEAT[HEAT.length - 1][0], bpm));
   let i = 0;
   while (i < HEAT.length - 2 && b > HEAT[i + 1][0]) i++;
@@ -49,7 +49,7 @@ export function computeSegments(tracks: Track[], s: PlanSettings, model: PaceMod
     return {
       track,
       index,
-      color: s.colorMode === "bpm" ? bpmColor(track.bpm) : NEON[index % NEON.length],
+      color: s.colorMode === "bpm" ? bpmColor(track.bpm) : PASTELS[index % PASTELS.length],
       playStart,
       playEnd,
       raceStart,
@@ -62,39 +62,39 @@ export function computeSegments(tracks: Track[], s: PlanSettings, model: PaceMod
   });
 }
 
-export interface KickReport {
+export interface CloserReport {
   segment: Segment;
   targetTime: number;
-  /** Positive = the kick drops too late. Seconds. */
+  /** Positive = the closer drops too late. Seconds. */
   delta: number;
   status: "perfect" | "early" | "late" | "missing";
   bestIndex: number;
   bestDelta: number;
-  suggestion?: KickFix;
+  suggestion?: CloserFix;
 }
 
-export interface KickFix {
+export interface CloserFix {
   text: string;
-  /** Kick lands this many seconds off target after the fix. */
+  /** Closer lands this many seconds off target after the fix. */
   after: number;
   apply(tracks: Track[]): Track[];
 }
 
-export function kickReport(
+export function closerReport(
   tracks: Track[],
   segments: Segment[],
   s: PlanSettings,
   model: PaceModel,
-): KickReport | null {
-  const idx = tracks.findIndex((t) => t.key === s.kickKey);
+): CloserReport | null {
+  const idx = tracks.findIndex((t) => t.key === s.closerKey);
   if (idx < 0) return null;
   const seg = segments[idx];
-  const targetD = Math.max(0, model.distance - s.kickTargetFromEnd);
+  const targetD = Math.max(0, model.distance - s.closerTargetFromEnd);
   const targetTime = model.timeAt(targetD);
   const actual = seg.playStart - s.startOffsetSec;
   const delta = actual - targetTime;
 
-  // Where in the list would the kick land closest to the target?
+  // Where in the list would the closer land closest to the target?
   const others = tracks.filter((_, i) => i !== idx);
   let bestIndex = idx;
   let bestDelta = delta;
@@ -122,30 +122,30 @@ export function kickReport(
 }
 
 /**
- * One-move fixes for a mistimed kick: cut a song before it, pull a song from after it,
+ * One-move fixes for a mistimed closer: cut a song before it, pull a song from after it,
  * or swap one across. Returns the move that lands closest, if it's a real improvement.
  */
-function bestFix(tracks: Track[], kickIdx: number, delta: number, cf: number): KickFix | undefined {
+function bestFix(tracks: Track[], closerIdx: number, delta: number, cf: number): CloserFix | undefined {
   const len = (t: Track) => Math.max(1, t.durationSec - cf);
   const bpmGap = (a?: number, b?: number) => (a && b ? Math.abs(a - b) : 40);
-  const before = tracks.slice(0, kickIdx);
-  const after = tracks.slice(kickIdx + 1);
-  const kick = tracks[kickIdx];
+  const before = tracks.slice(0, closerIdx);
+  const after = tracks.slice(closerIdx + 1);
+  const closer = tracks[closerIdx];
   const prev = before.at(-1);
   // `cost` = how much the move scrambles your BPM ramp.
-  const options: (KickFix & { cost: number })[] = [];
+  const options: (CloserFix & { cost: number })[] = [];
 
   for (const x of before) {
     options.push({ text: `Cut “${x.title}”`, after: delta - len(x), cost: 0, apply: (ts) => ts.filter((t) => t.key !== x.key) });
   }
   for (const y of after) {
     options.push({
-      text: `Play “${y.title}” before the kick`,
+      text: `Play “${y.title}” before the closer`,
       after: delta + len(y),
       cost: bpmGap(y.bpm, prev?.bpm),
       apply: (ts) => {
         const rest = ts.filter((t) => t.key !== y.key);
-        const k = rest.findIndex((t) => t.key === kick.key);
+        const k = rest.findIndex((t) => t.key === closer.key);
         return [...rest.slice(0, k), y, ...rest.slice(k)];
       },
     });
@@ -176,17 +176,17 @@ export function moveTrack(tracks: Track[], from: number, to: number) {
   return copy;
 }
 
-/** Slow -> fast. Unknown-BPM songs go first as warmup; the kick song is placed to land on target. */
+/** Slow -> fast. Unknown-BPM songs go first as warmup; the closer song is placed to land on target. */
 export function autoRamp(tracks: Track[], s: PlanSettings, model: PaceModel) {
-  const kick = tracks.find((t) => t.key === s.kickKey);
-  const rest = tracks.filter((t) => t.key !== s.kickKey);
+  const closer = tracks.find((t) => t.key === s.closerKey);
+  const rest = tracks.filter((t) => t.key !== s.closerKey);
   const unknown = rest.filter((t) => !t.bpm);
   const known = rest.filter((t) => t.bpm).sort((a, b) => a.bpm! - b.bpm!);
   let out = [...unknown, ...known];
-  if (kick) {
-    out = [...out, kick];
+  if (closer) {
+    out = [...out, closer];
     const segs = computeSegments(out, s, model);
-    const rep = kickReport(out, segs, s, model);
+    const rep = closerReport(out, segs, s, model);
     if (rep) out = moveTrack(out, out.length - 1, rep.bestIndex);
   }
   return out;

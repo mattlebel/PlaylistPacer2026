@@ -29,7 +29,7 @@ function GoalField({ goal, compact }: { goal: number; compact: boolean }) {
 
   return (
     <div className="flex items-center gap-2">
-      <button className="grid h-9 w-9 place-items-center rounded-full border-2 border-paper/20 font-black hover:border-acid hover:text-acid" onClick={() => set({ goalSec: Math.max(300, goal - 60) })} aria-label="One minute faster">
+      <button className="grid h-9 w-9 place-items-center rounded-full border border-pink/30 font-semibold hover:border-pink hover:text-chalk" onClick={() => set({ goalSec: Math.max(300, goal - 60) })} aria-label="One minute faster">
         −
       </button>
       <input
@@ -38,11 +38,11 @@ function GoalField({ goal, compact }: { goal: number; compact: boolean }) {
         onChange={(e) => setText(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-        className={`w-[7.2ch] rounded-2xl border-[3px] bg-ink text-center font-display font-black tabular-nums outline-none transition focus:border-acid ${
+        className={`w-[7.2ch] rounded-xl border bg-ink-3 text-center font-display font-bold tabular-nums tracking-tight outline-none transition focus:border-pink ${
           compact ? "py-1 text-2xl" : "py-2 text-4xl sm:text-5xl"
-        } ${bad ? "border-hot text-hot" : "border-paper/20"}`}
+        } ${bad ? "border-coral text-coral" : "border-pink/25"}`}
       />
-      <button className="grid h-9 w-9 place-items-center rounded-full border-2 border-paper/20 font-black hover:border-acid hover:text-acid" onClick={() => set({ goalSec: goal + 60 })} aria-label="One minute slower">
+      <button className="grid h-9 w-9 place-items-center rounded-full border border-pink/30 font-semibold hover:border-pink hover:text-chalk" onClick={() => set({ goalSec: goal + 60 })} aria-label="One minute slower">
         +
       </button>
     </div>
@@ -50,10 +50,10 @@ function GoalField({ goal, compact }: { goal: number; compact: boolean }) {
 }
 
 const STRATS: { value: PaceStrategy; label: string; title: string }[] = [
-  { value: "even", label: "🟰 Even", title: "Same pace the whole way" },
-  { value: "negative", label: "📈 Neg split", title: "Start conservative, finish fast" },
-  { value: "hills", label: "⛰️ Hill-smart", title: "Slower up, faster down (grade-adjusted)" },
-  { value: "ghost", label: "👻 Ghost", title: "Replay how you actually ran this course, scaled to your goal" },
+  { value: "even", label: "Even", title: "Same pace the whole way" },
+  { value: "negative", label: "Negative split", title: "Start conservative, finish fast" },
+  { value: "hills", label: "Hill-smart", title: "Slower up, faster down (grade-adjusted)" },
+  { value: "ghost", label: "Ghost", title: "Replay how you actually ran this course, scaled to your goal" },
 ];
 
 export function GoalBar({ plan }: { plan: Plan }) {
@@ -64,15 +64,15 @@ export function GoalBar({ plan }: { plan: Plan }) {
   return (
     <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
       <div>
-        <div className="mb-1 font-display text-[10px] font-black uppercase tracking-widest text-paper/50">goal time</div>
+        <div className="label mb-1">goal time</div>
         <GoalInput compact />
       </div>
       <div>
-        <div className="mb-1 font-display text-[10px] font-black uppercase tracking-widest text-paper/50">avg pace</div>
-        <div className="font-display text-2xl font-black tabular-nums text-acid">{fmtPace(avgPace, s.units)}</div>
+        <div className="label mb-1">avg pace</div>
+        <div className="font-display text-2xl font-bold tabular-nums tracking-tight text-chalk">{fmtPace(avgPace, s.units)}</div>
       </div>
       <div>
-        <div className="mb-1 font-display text-[10px] font-black uppercase tracking-widest text-paper/50">pacing</div>
+        <div className="label mb-1">pacing</div>
         <Segmented
           label="pacing strategy"
           size="sm"
@@ -109,13 +109,13 @@ export function NerdSettings({ plan }: { plan: Plan }) {
         />
       )}
       <Slider
-        label="Kick drops"
-        value={Number(toUnits(s.kickTargetFromEnd, u).toFixed(2))}
+        label="Closing track starts"
+        value={Number(toUnits(s.closerTargetFromEnd, u).toFixed(2))}
         min={0.1}
         max={u === "mi" ? 3 : 5}
         step={0.05}
         suffix={`${u} from the finish`}
-        onChange={(v) => set({ kickTargetFromEnd: fromUnits(v, u) })}
+        onChange={(v) => set({ closerTargetFromEnd: fromUnits(v, u) })}
       />
       <Slider
         label="Crossfade"
@@ -135,7 +135,7 @@ export function NerdSettings({ plan }: { plan: Plan }) {
         onChange={(v) => set({ startOffsetSec: v * 60 })}
       />
       <div>
-        <div className="mb-2 font-display text-[10px] font-black uppercase tracking-widest text-paper/60">Official distance</div>
+        <div className="label mb-2">Official distance</div>
         <div className="flex flex-wrap items-center gap-2">
           <input
             key={`${plan.course.distance}-${u}`}
@@ -148,31 +148,31 @@ export function NerdSettings({ plan }: { plan: Plan }) {
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
             aria-label={`Official distance in ${u}`}
           />
-          <span className="text-sm text-paper/60">{u}</span>
+          <span className="text-sm text-pink/60">{u}</span>
           {[
             ["5K", 5000],
             ["10K", 10000],
             ["Half", 21097.5],
             ["Full", 42195],
           ].map(([l, m]) => (
-            <button key={l} className="chip text-paper/60 hover:text-acid" onClick={() => official(m as number)}>
+            <button key={l} className="chip text-pink/60 hover:text-chalk" onClick={() => official(m as number)}>
               {l}
             </button>
           ))}
         </div>
         {Math.abs(plan.course.measuredDistance - plan.course.distance) > 50 && (
-          <p className="mt-1 text-xs text-paper/40">
+          <p className="mt-1 text-xs text-pink/40">
             GPS measured {toUnits(plan.course.measuredDistance, u).toFixed(2)} {u}. Watches usually read a little long — that&apos;s normal.
           </p>
         )}
       </div>
       <div className="flex flex-wrap items-end gap-4">
         <div>
-          <div className="mb-2 font-display text-[10px] font-black uppercase tracking-widest text-paper/60">Units</div>
+          <div className="label mb-2">Units</div>
           <Segmented label="units" size="sm" value={u} onChange={(v) => set({ units: v })} options={[{ value: "mi", label: "mi" }, { value: "km", label: "km" }]} />
         </div>
         <div>
-          <div className="mb-2 font-display text-[10px] font-black uppercase tracking-widest text-paper/60">Colors</div>
+          <div className="label mb-2">Colors</div>
           <Segmented
             label="color mode"
             size="sm"
@@ -208,9 +208,9 @@ function Slider({
 }) {
   return (
     <label className="block">
-      <div className="mb-1 font-display text-[10px] font-black uppercase tracking-widest text-paper/60">{label}</div>
+      <div className="label mb-1">{label}</div>
       <div className="mb-1 text-sm">
-        <span className="font-display text-xl font-black text-acid">{value}</span> <span className="text-paper/60">{suffix}</span>
+        <span className="font-display text-xl font-bold text-chalk">{value}</span> <span className="text-pink/60">{suffix}</span>
       </div>
       <input type="range" className="w-full" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} />
     </label>

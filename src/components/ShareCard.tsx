@@ -5,7 +5,9 @@ import { useMemo, useRef, useState } from "react";
 import { fmtClock, fmtPace, toUnits } from "@/lib/format";
 import { savePlaylist, spotifyConnected } from "@/lib/spotify";
 import { useKD } from "@/lib/store";
+import type { Segment } from "@/lib/types";
 import type { Plan } from "@/lib/usePlan";
+import { LogoMark } from "./Logo";
 import { Modal } from "./ui";
 
 export function ShareModal({ open, onClose, plan, notify }: { open: boolean; onClose(): void; plan: Plan; notify(m: string): void }) {
@@ -40,11 +42,11 @@ export function ShareModal({ open, onClose, plan, notify }: { open: boolean; onC
     try {
       const race = plan.segments.filter((s) => s.phase !== "post").map((s) => s.track);
       const url = await savePlaylist(
-        `⚡ ${plan.course.name} — ${fmtClock(plan.model.goal, true)}`,
-        `Race-ordered by Playlist Pacer. Kick: ${plan.kick?.segment.track.title ?? "—"}`,
+        `${plan.course.name} — ${fmtClock(plan.model.goal, true)}`,
+        `Race-ordered by Playlist Pacer. Closing track: ${plan.closer?.segment.track.title ?? "—"}`,
         [...race, ...plan.segments.filter((s) => s.phase === "post").map((s) => s.track)],
       );
-      notify("💚 Saved to Spotify!");
+      notify("Saved to Spotify.");
       window.open(url, "_blank");
     } catch (e) {
       notify((e as Error).message);
@@ -54,7 +56,7 @@ export function ShareModal({ open, onClose, plan, notify }: { open: boolean; onC
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Share your plan" accent="var(--color-sun)" wide>
+    <Modal open={open} onClose={onClose} title="Share your plan" wide>
       <div className="grid gap-6 md:grid-cols-[1fr_auto]">
         <div className="overflow-hidden rounded-2xl">
           <div className="origin-top-left" style={{ width: 540 * 0.75, height: 675 * 0.75 }}>
@@ -64,19 +66,19 @@ export function ShareModal({ open, onClose, plan, notify }: { open: boolean; onC
           </div>
         </div>
         <div className="flex flex-col gap-3 md:w-56">
-          <button className="btn bg-acid px-5 py-3 text-xs" onClick={download} disabled={!!busy}>
-            {busy === "png" ? "rendering…" : "⬇️ Download PNG"}
+          <button className="btn bg-pink px-5 py-3 text-xs" onClick={download} disabled={!!busy}>
+            {busy === "png" ? "rendering…" : "Download PNG"}
           </button>
-          <button className="btn bg-paper px-5 py-3 text-xs" onClick={copyCues}>
-            📋 Copy cue sheet
+          <button className="btn bg-pink px-5 py-3 text-xs" onClick={copyCues}>
+            Copy cue sheet
           </button>
           {source === "spotify" && spotifyConnected() && (
             <button className="btn bg-mint px-5 py-3 text-xs" onClick={toSpotify} disabled={!!busy}>
-              {busy === "spotify" ? "saving…" : "💚 Save order to Spotify"}
+              {busy === "spotify" ? "saving…" : "Save order to Spotify"}
             </button>
           )}
-          <p className="text-xs text-paper/50">
-            Story-sized poster for the &apos;gram, r/runnyc, or your run club group chat. The cue sheet is plain text with every
+          <p className="text-xs text-pink/50">
+            An album-sleeve poster for Instagram, r/runnyc or your run club chat. The cue sheet is plain text with every
             song&apos;s mile marker.
           </p>
         </div>
@@ -89,16 +91,29 @@ function cueSheet(plan: Plan, playlistName: string) {
   const u = plan.settings.units;
   const lines = [
     `🏁 ${plan.course.name} — goal ${fmtClock(plan.model.goal, true)} (${fmtPace(plan.model.goal / plan.course.distance, u)})`,
-    `🎧 ${playlistName}`,
+    `Playlist: ${playlistName}`,
     "",
   ];
   for (const s of plan.segments) {
     if (s.phase !== "race") continue;
-    const kick = s.track.key === plan.settings.kickKey ? "⚡ " : "   ";
-    lines.push(`${kick}${toUnits(s.startD, u).toFixed(2).padStart(5)} ${u}  ${fmtClock(s.raceStart, true)}  ${s.track.title} — ${s.track.artist}`);
+    const closer = s.track.key === plan.settings.closerKey ? "★ " : "  ";
+    lines.push(`${closer}${toUnits(s.startD, u).toFixed(2).padStart(5)} ${u}  ${fmtClock(s.raceStart, true)}  ${s.track.title} — ${s.track.artist}`);
   }
   lines.push("", "made with Playlist Pacer");
   return lines.join("\n");
+}
+
+/** Pick up to `n` race tracks spread across a side, always keeping the closing track. */
+function sampleSide(segs: Segment[], n: number, keep?: string) {
+  if (segs.length <= n) return segs;
+  const out = new Set<Segment>();
+  for (let i = 0; i < n; i++) out.add(segs[Math.round((i * (segs.length - 1)) / (n - 1))]);
+  const k = segs.find((s) => s.track.key === keep);
+  if (k && !out.has(k)) {
+    out.delete([...out][out.size - 1]);
+    out.add(k);
+  }
+  return [...out].sort((x, y) => x.index - y.index);
 }
 
 function Poster({ plan, playlistName, ref }: { plan: Plan; playlistName: string; ref: React.Ref<HTMLDivElement> }) {
@@ -110,7 +125,7 @@ function Poster({ plan, playlistName, ref }: { plan: Plan; playlistName: string;
     const xs = pts.map((p) => p.lon * k);
     const ys = pts.map((p) => -p.lat);
     const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
-    const W = 460, H = 300;
+    const W = 200, H = 210;
     const s = Math.min(W / (maxX - minX || 1), H / (maxY - minY || 1));
     const ox = (W - (maxX - minX) * s) / 2;
     const oy = (H - (maxY - minY) * s) / 2;
@@ -124,55 +139,70 @@ function Poster({ plan, playlistName, ref }: { plan: Plan; playlistName: string;
     return { paths, w: W, h: H };
   }, [plan]);
 
-  const kick = plan.kick;
-  const ramp = plan.stats.openingBpm && plan.stats.closingBpm ? `${plan.stats.openingBpm}→${plan.stats.closingBpm}` : "—";
+  const half = plan.course.distance / 2;
+  const race = plan.segments.filter((x) => x.phase === "race");
+  const sideA = sampleSide(race.filter((x) => x.startD < half), 10);
+  const sideB = sampleSide(race.filter((x) => x.startD >= half), 10, plan.settings.closerKey ?? undefined);
+  const ramp = plan.stats.openingBpm && plan.stats.closingBpm ? `${plan.stats.openingBpm} → ${plan.stats.closingBpm}` : "—";
 
   return (
-    <div ref={ref} className="relative overflow-hidden bg-ink p-7 text-paper" style={{ width: 540, height: 675, fontFamily: "var(--font-sans)" }}>
-      <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-hot/40 blur-3xl" />
-      <div className="absolute -bottom-24 -left-20 h-72 w-72 rounded-full bg-ice/30 blur-3xl" />
-      <div className="relative flex items-center justify-between">
-        <span className="font-display text-sm font-black uppercase tracking-tight">Playlist <span className="text-acid">Pacer</span></span>
-        <span className="rounded-full border-2 border-black bg-acid px-3 py-0.5 font-display text-[10px] font-black text-ink">RACE PLAYLIST PLAN</span>
+    <div ref={ref} className="relative overflow-hidden bg-ground p-8 text-pink" style={{ width: 540, height: 675, fontFamily: "var(--font-sans)" }}>
+      <div className="flex items-center justify-between">
+        <span className="flex items-center gap-2">
+          <LogoMark size={22} />
+          <span className="font-display text-sm font-bold">playlist pacer</span>
+        </span>
+        <span className="font-mono text-[9px] uppercase tracking-wider opacity-75">{fmtClock(plan.model.goal, true)} · {toUnits(plan.course.distance, u).toFixed(1)} {u}</span>
       </div>
-      <div className="relative mt-4 font-display text-[40px] font-black uppercase leading-[0.9]">{plan.course.name}</div>
-      <div className="relative mt-1 truncate text-sm text-paper/60">🎧 {playlistName}</div>
-      <svg width={w} height={h} className="relative mx-auto mt-3 block">
-        {paths.map((p, i) => (
-          <g key={i}>
-            <path d={p.d} stroke="#000" strokeWidth={10} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          </g>
-        ))}
-        {paths.map((p, i) => (
-          <path key={`c${i}`} d={p.d} stroke={p.color} strokeWidth={6} fill="none" strokeLinejoin="round" />
-        ))}
-      </svg>
-      <div className="relative mt-3 grid grid-cols-4 gap-2">
+      <div className="mt-6 flex gap-5">
+        <div className="min-w-0 flex-1">
+          <div className="font-display text-[44px] font-extrabold leading-[0.9] tracking-tight">{plan.course.name}</div>
+          <div className="mt-2 truncate text-sm text-blush">{playlistName}</div>
+          <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 font-mono text-[10px]">
+            {[
+              ["pace", fmtPace(plan.model.goal / plan.course.distance, u)],
+              ["tracks", String(plan.stats.raceSongs)],
+              ["bpm", ramp],
+              ["closer", plan.closer ? `${u} ${toUnits(plan.closer.segment.startD, u).toFixed(1)}` : "—"],
+            ].map(([k, v]) => (
+              <div key={k}>
+                <div className="uppercase opacity-60">{k}</div>
+                <div className="mt-0.5 text-[12px] text-chalk">{v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <svg width={w} height={h} className="shrink-0">
+          {paths.map((p, i) => (
+            <path key={i} d={p.d} stroke={p.color} strokeWidth={5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          ))}
+        </svg>
+      </div>
+      <div className="mt-6 grid grid-cols-2 gap-6 rounded-md bg-pink p-5 text-ink">
         {[
-          ["goal", fmtClock(plan.model.goal, true)],
-          ["pace", fmtPace(plan.model.goal / plan.course.distance, u).replace(`/${u}`, "")],
-          ["songs", String(plan.stats.raceSongs)],
-          ["bpm", ramp],
-        ].map(([k, v], i) => (
-          <div
-            key={k}
-            className="rounded-2xl border-2 border-black px-2 py-2 text-ink"
-            style={{ background: ["#d4ff3a", "#ff3da5", "#3ddcff", "#b69cff"][i] }}
-          >
-            <div className="font-display text-[9px] font-black uppercase">{k}</div>
-            <div className="font-display text-[15px] font-black tabular-nums leading-tight">{v}</div>
+          ["Side A", sideA],
+          ["Side B", sideB],
+        ].map(([side, list]) => (
+          <div key={side as string} className="flex min-w-0 flex-col gap-1.5">
+            <span className="font-mono text-[9px] uppercase tracking-wider text-ground">{side as string}</span>
+            {(list as Segment[]).map((seg) => {
+              const isCloser = seg.track.key === plan.settings.closerKey;
+              return (
+                <div key={seg.track.key} className="flex min-w-0 gap-2 text-[12px]">
+                  <span className="w-8 shrink-0 pt-px font-mono text-[9px] opacity-60">{toUnits(seg.startD, u).toFixed(1)}</span>
+                  <span className={`truncate ${isCloser ? "font-bold" : ""}`}>
+                    {isCloser ? "★ " : ""}
+                    {seg.track.title}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         ))}
       </div>
-      {kick && (
-        <div className="relative mt-4 rounded-2xl border-2 border-black bg-paper px-4 py-3 text-ink">
-          <div className="font-display text-[10px] font-black uppercase">⚡ the kick drops at {u} {toUnits(kick.segment.startD, u).toFixed(1)}</div>
-          <div className="truncate font-display text-lg font-black">{kick.segment.track.title}</div>
-        </div>
-      )}
-      <div className="absolute inset-x-7 bottom-5 flex justify-between font-mono text-[10px] text-paper/50">
-        <span>time the drop. own the kick.</span>
-        <span>{toUnits(plan.course.distance, u).toFixed(1)} {u}</span>
+      <div className="absolute inset-x-8 bottom-6 flex justify-between font-mono text-[9px] opacity-70">
+        <span>your race, sequenced like an album</span>
+        <span>{race.length} tracks</span>
       </div>
     </div>
   );
