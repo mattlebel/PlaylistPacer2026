@@ -2,11 +2,13 @@
 
 import { toPng } from "html-to-image";
 import { useMemo, useRef, useState } from "react";
+import { cueSheet } from "@/lib/cueSheet";
 import { fmtClock, fmtPace, toUnits } from "@/lib/format";
 import { savePlaylist, spotifyConnected } from "@/lib/spotify";
 import { useKD } from "@/lib/store";
 import type { Segment } from "@/lib/types";
 import type { Plan } from "@/lib/usePlan";
+import { PoweredByStrava, SpotifyAttribution } from "./brand";
 import { LogoMark } from "./Logo";
 import { Modal } from "./ui";
 
@@ -14,6 +16,7 @@ export function ShareModal({ open, onClose, plan, notify }: { open: boolean; onC
   const card = useRef<HTMLDivElement>(null);
   const playlistName = useKD((s) => s.playlistName);
   const source = useKD((s) => s.playlistSource);
+  const playlistUrl = useKD((s) => s.playlistUrl);
   const [busy, setBusy] = useState<string | null>(null);
 
   const download = async () => {
@@ -33,7 +36,7 @@ export function ShareModal({ open, onClose, plan, notify }: { open: boolean; onC
   };
 
   const copyCues = async () => {
-    await navigator.clipboard.writeText(cueSheet(plan, playlistName));
+    await navigator.clipboard.writeText(cueSheet(plan, { name: playlistName, url: playlistUrl }));
     notify("Cue sheet copied.");
   };
 
@@ -61,7 +64,7 @@ export function ShareModal({ open, onClose, plan, notify }: { open: boolean; onC
         <div className="overflow-hidden rounded-2xl">
           <div className="origin-top-left" style={{ width: 540 * 0.75, height: 675 * 0.75 }}>
             <div style={{ transform: "scale(0.75)", transformOrigin: "top left" }}>
-              <Poster ref={card} plan={plan} playlistName={playlistName} />
+              <Poster ref={card} plan={plan} playlistName={playlistName} fromSpotify={source === "spotify"} />
             </div>
           </div>
         </div>
@@ -87,22 +90,6 @@ export function ShareModal({ open, onClose, plan, notify }: { open: boolean; onC
   );
 }
 
-function cueSheet(plan: Plan, playlistName: string) {
-  const u = plan.settings.units;
-  const lines = [
-    `🏁 ${plan.course.name} — goal ${fmtClock(plan.model.goal, true)} (${fmtPace(plan.model.goal / plan.course.distance, u)})`,
-    `Playlist: ${playlistName}`,
-    "",
-  ];
-  for (const s of plan.segments) {
-    if (s.phase !== "race") continue;
-    const closer = s.track.key === plan.settings.closerKey ? "★ " : "  ";
-    lines.push(`${closer}${toUnits(s.startD, u).toFixed(2).padStart(5)} ${u}  ${fmtClock(s.raceStart, true)}  ${s.track.title} — ${s.track.artist}`);
-  }
-  lines.push("", "made with Playlist Pacer");
-  return lines.join("\n");
-}
-
 /** Pick up to `n` race tracks spread across a side, always keeping the closing track. */
 function sampleSide(segs: Segment[], n: number, keep?: string) {
   if (segs.length <= n) return segs;
@@ -116,7 +103,17 @@ function sampleSide(segs: Segment[], n: number, keep?: string) {
   return [...out].sort((x, y) => x.index - y.index);
 }
 
-function Poster({ plan, playlistName, ref }: { plan: Plan; playlistName: string; ref: React.Ref<HTMLDivElement> }) {
+function Poster({
+  plan,
+  playlistName,
+  fromSpotify,
+  ref,
+}: {
+  plan: Plan;
+  playlistName: string;
+  fromSpotify: boolean;
+  ref: React.Ref<HTMLDivElement>;
+}) {
   const u = plan.settings.units;
   const { paths, w, h } = useMemo(() => {
     const pts = plan.course.points;
@@ -202,8 +199,13 @@ function Poster({ plan, playlistName, ref }: { plan: Plan; playlistName: string;
       </div>
       <div className="absolute inset-x-8 bottom-6 flex justify-between font-mono text-[9px] opacity-70">
         <span>your race, sequenced like an album</span>
-        <span>{race.length} tracks</span>
+        <span className="flex items-center gap-3">
+          {plan.course.source.startsWith("strava") && <PoweredByStrava />}
+          {fromSpotify && <SpotifyAttribution />}
+          {!fromSpotify && !plan.course.source.startsWith("strava") && <span>{race.length} tracks</span>}
+        </span>
       </div>
+      {plan.course.device && <div className="absolute bottom-[42px] right-8 font-mono text-[9px] opacity-70">Recorded on {plan.course.device}</div>}
     </div>
   );
 }

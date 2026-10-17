@@ -13,6 +13,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from "@dnd-kit/utilities";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { fmtClock, toUnits } from "@/lib/format";
+import { spotifyTrackUrl } from "@/lib/spotify";
 import { useKD } from "@/lib/store";
 import type { Segment } from "@/lib/types";
 import type { Plan } from "@/lib/usePlan";
@@ -102,21 +103,34 @@ function Row({ seg, plan, selected }: { seg: Segment; plan: Plan; selected: bool
       >
         ⋮⋮
       </button>
-      <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md" style={{ background: seg.color }}>
-        {track.art ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={track.art} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <span className="grid h-full place-items-center font-mono text-[11px] text-ink">{String(seg.index + 1).padStart(2, "0")}</span>
-        )}
-        {track.art && <span className="absolute inset-x-0 bottom-0 h-1.5" style={{ background: seg.color }} />}
-      </div>
+      {/* Segment color sits beside the art: Spotify artwork must not be overlaid. */}
+      <span aria-hidden className="h-8 w-1 shrink-0 rounded-full" style={{ background: seg.color }} />
+      {track.art && track.spotifyId ? (
+        <a
+          href={spotifyTrackUrl(track.spotifyId)}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Play ${track.title} on Spotify`}
+          title="Play on Spotify"
+          className="h-10 w-10 shrink-0"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={track.art} alt="" className="h-full w-full rounded-[4px] object-cover" />
+        </a>
+      ) : (
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[4px] font-mono text-[11px] text-ink" style={{ background: seg.color }}>
+          {String(seg.index + 1).padStart(2, "0")}
+        </span>
+      )}
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold leading-tight">
+        <div className="truncate text-sm font-semibold leading-tight" title={track.title}>
           {isCloser && <span className="mr-1 text-chalk">★</span>}
           {track.title}
         </div>
-        <div className="truncate text-xs text-pink/60">{track.artist}</div>
+        <div className="truncate text-xs text-pink/60" title={track.artist}>
+          {track.artist}
+        </div>
       </div>
       <div className="w-14 shrink-0 text-right font-mono text-[11px] leading-tight" title={seg.phase === "race" ? `${toUnits(seg.startD, u).toFixed(2)} → ${toUnits(seg.endD, u).toFixed(2)} ${u}` : undefined}>
         {seg.phase === "race" ? (
@@ -135,6 +149,7 @@ function Row({ seg, plan, selected }: { seg: Segment; plan: Plan; selected: bool
       <div className="-ml-1 flex items-center">
         <button
           title={isCloser ? "Your closing track" : "Make this your closing track"}
+          aria-label={isCloser ? `${track.title} is your closing track` : `Make ${track.title} your closing track`}
           aria-pressed={isCloser}
           onClick={(e) => {
             e.stopPropagation();
@@ -146,6 +161,7 @@ function Row({ seg, plan, selected }: { seg: Segment; plan: Plan; selected: bool
         </button>
         <button
           title="Remove from plan"
+          aria-label={`Remove ${track.title}`}
           onClick={(e) => {
             e.stopPropagation();
             removeTrack(track.key);

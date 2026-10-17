@@ -19,6 +19,8 @@ const VERIFIER_KEY = "kd.spotify.verifier";
 const API = "https://api.spotify.com/v1";
 
 export const spotifyConfigured = () => CLIENT_ID.length > 0;
+export const spotifyTrackUrl = (id: string) => `https://open.spotify.com/track/${id}`;
+export const spotifyPlaylistUrl = (id: string) => `https://open.spotify.com/playlist/${id}`;
 const redirectUri = () => `${window.location.origin}/spotify/callback`;
 
 interface StoredToken {
@@ -165,7 +167,7 @@ interface SpTrack {
   album?: { images?: { url: string }[] };
 }
 
-export async function playlistTracks(id: string): Promise<{ name: string; tracks: Track[] }> {
+export async function playlistTracks(id: string): Promise<{ name: string; url: string; tracks: Track[] }> {
   const meta = await api<{ name: string }>(`/playlists/${id}?fields=name`);
   const tracks: Track[] = [];
   // Feb 2026 renamed /tracks -> /items and item.track -> item.item. Accept both.
@@ -199,7 +201,7 @@ export async function playlistTracks(id: string): Promise<{ name: string; tracks
     }
     next = page.next;
   }
-  return { name: meta.name, tracks };
+  return { name: meta.name, url: spotifyPlaylistUrl(id), tracks };
 }
 
 /** Save the arranged order as a brand new private playlist. */

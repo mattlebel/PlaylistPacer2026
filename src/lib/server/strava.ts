@@ -105,6 +105,42 @@ export function parseStravaUrl(text: string): { kind: "activity" | "route"; id: 
   return null;
 }
 
+type Stream = { type: string; data: unknown[] };
+export type Streams = Record<string, { data: unknown[] }> | Stream[];
+
+/** Activity streams come keyed by type; route streams come as an array. Normalize both. */
+export function streamsByType(s: Streams): Record<string, unknown[]> {
+  if (Array.isArray(s)) return Object.fromEntries(s.map((x) => [x.type, x.data]));
+  return Object.fromEntries(Object.entries(s).map(([k, v]) => [k, v.data]));
+}
+
+export interface ImportPayload {
+  kind: "activity" | "route";
+  name: string;
+  url: string;
+  device?: string;
+  points: { lat: number; lon: number; ele?: number; t?: number }[];
+}
+
+export function buildImportPayload(
+  ref: { kind: "activity" | "route"; id: string },
+  meta: { name: string; device_name?: string | null },
+  raw: Streams,
+): ImportPayload {
+  const streams = streamsByType(raw);
+  const latlng = (streams.latlng ?? []) as [number, number][];
+  if (latlng.length < 2) throw new StravaError("No GPS on that one (treadmill?).", 422);
+  const alt = streams.altitude as number[] | undefined;
+  const time = streams.time as number[] | undefined;
+  return {
+    kind: ref.kind,
+    name: meta.name,
+    url: `https://www.strava.com/${ref.kind === "route" ? "routes" : "activities"}/${ref.id}`,
+    device: meta.device_name || undefined,
+    points: latlng.map(([lat, lon], i) => ({ lat, lon, ele: alt?.[i], t: time?.[i] })),
+  };
+}
+
 /** strava.app.link short links redirect to the real URL. */
 export async function resolveShortLink(text: string) {
   if (!/strava\.app\.link|strava\.com\/s\//.test(text)) return text;

@@ -8,6 +8,8 @@ import { fmtClock, toUnits } from "@/lib/format";
 import { loadEmbedApi, type EmbedController } from "@/lib/spotifyEmbed";
 import type { Landmark } from "@/lib/types";
 import type { Plan } from "@/lib/usePlan";
+import { spotifyTrackUrl } from "@/lib/spotify";
+import { SpotifyIcon } from "./brand";
 import { CourseMap } from "./CourseMap";
 import { Strip } from "./Strip";
 import { Segmented } from "./ui";
@@ -164,7 +166,7 @@ export function Preview({ plan, onClose }: { plan: Plan; onClose(): void }) {
         <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-4 sm:p-6">
           <div className="stk bg-pink px-4 py-2">
             <div className="font-mono text-[10px] uppercase tracking-widest">{u}</div>
-            <div className="font-display text-4xl font-extrabold tabular-nums leading-none tracking-tight sm:text-6xl">{toUnits(runnerD, u).toFixed(1)}</div>
+            <div data-testid="preview-distance" className="font-display text-4xl font-extrabold tabular-nums leading-none tracking-tight sm:text-6xl">{toUnits(runnerD, u).toFixed(1)}</div>
           </div>
           <div className="stk bg-pink px-4 py-2 text-right">
             <div className="font-mono text-[10px] uppercase tracking-widest">race clock</div>
@@ -224,26 +226,47 @@ export function Preview({ plan, onClose }: { plan: Plan; onClose(): void }) {
             <Strip plan={plan} selectedKey={seg?.track.key ?? null} onSelect={() => {}} runnerD={runnerD} />
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-4">
-            <motion.div
-              key={seg?.track.key}
-              initial={{ scale: 0.85, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md sm:h-20 sm:w-20"
-              style={{ background: seg?.color }}
-            >
-              {seg?.track.art ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={seg.track.art} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <span className="grid h-full place-items-center text-3xl text-ink">{isCloser ? "★" : "♪"}</span>
-              )}
-            </motion.div>
+            {/* Spotify artwork is shown as-is (no animation or overlays) and links back to Spotify. */}
+            {seg?.track.art && seg.track.spotifyId ? (
+              <a
+                href={spotifyTrackUrl(seg.track.spotifyId)}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`Play ${seg.track.title} on Spotify`}
+                className="h-16 w-16 shrink-0 sm:h-20 sm:w-20"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={seg.track.art} alt="" className="h-full w-full rounded-[8px] object-cover" />
+              </a>
+            ) : (
+              <motion.div
+                key={seg?.track.key}
+                initial={{ scale: 0.85, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="grid h-16 w-16 shrink-0 place-items-center rounded-md text-3xl text-ink sm:h-20 sm:w-20"
+                style={{ background: seg?.color }}
+              >
+                {isCloser ? "★" : "♪"}
+              </motion.div>
+            )}
             <div className="min-w-0 flex-1">
               {isCloser && <div className="label text-chalk">★ Closing track</div>}
-              <div className="truncate font-display text-xl font-bold tracking-tight sm:text-2xl">{seg?.track.title}</div>
+              <div className="truncate font-display text-xl font-bold tracking-tight sm:text-2xl" title={seg?.track.title}>
+                {seg?.track.title}
+              </div>
               <div className="truncate text-sm text-pink/60">
                 {seg?.track.artist} · <span className="font-mono">{seg?.track.bpm ?? "?"} bpm</span> · song {idx + 1}/{race.length}
               </div>
+              {seg?.track.spotifyId && (
+                <a
+                  href={spotifyTrackUrl(seg.track.spotifyId)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-1 inline-flex items-center gap-1.5 text-xs font-semibold text-chalk hover:underline"
+                >
+                  <SpotifyIcon size={14} /> Play on Spotify
+                </a>
+              )}
             </div>
             <div className={hasSpotify ? "w-full sm:w-72" : "hidden"} ref={embedBox} />
             <div className="flex items-center gap-2">

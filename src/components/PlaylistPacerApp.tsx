@@ -17,6 +17,7 @@ import { Preview } from "./Preview";
 import { ShareModal } from "./ShareCard";
 import { SongList } from "./SongList";
 import { Strip } from "./Strip";
+import { DeviceAttribution, PoweredByStrava, SpotifyAttribution, ViewOnStrava } from "./brand";
 import { Logo } from "./Logo";
 import { Toast } from "./ui";
 
@@ -115,6 +116,9 @@ export function PlaylistPacerApp() {
 
 function PlanView({ plan }: { plan: Plan }) {
   const selectedKey = useKD((s) => s.selectedKey);
+  const playlistSource = useKD((s) => s.playlistSource);
+  const playlistName = useKD((s) => s.playlistName);
+  const playlistUrl = useKD((s) => s.playlistUrl);
   const select = useKD((s) => s.select);
   const [nerd, setNerd] = useState(false);
   const u = plan.settings.units;
@@ -162,6 +166,13 @@ function PlanView({ plan }: { plan: Plan }) {
                 </span>
               )}
             </div>
+            {plan.course.source.startsWith("strava") && (
+              <div className="absolute bottom-3 right-12 flex max-w-[calc(100%-4rem)] flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-ink/75 px-3 py-2 text-xs text-pink">
+                <PoweredByStrava />
+                {plan.course.sourceUrl && <ViewOnStrava href={plan.course.sourceUrl} />}
+                <DeviceAttribution device={plan.course.device} className="text-pink/70" />
+              </div>
+            )}
           </section>
 
           <section className="panel p-4 sm:p-5">
@@ -180,6 +191,14 @@ function PlanView({ plan }: { plan: Plan }) {
             <h2 className="font-display text-xl font-bold">Tracklist</h2>
             <span className="font-mono text-[10px] text-pink/60">{plan.tracks.length} tracks · drag to reorder</span>
           </div>
+          {playlistSource === "spotify" && (
+            <div className="mb-2 flex items-center justify-between gap-3 px-1 text-xs">
+              <span className="truncate text-pink/70" title={playlistName}>
+                {playlistName}
+              </span>
+              <SpotifyAttribution href={playlistUrl} className="text-chalk" />
+            </div>
+          )}
           <div className="-mr-1 min-h-0 flex-1 overflow-y-auto pr-1">
             <SongList plan={plan} />
           </div>

@@ -36,6 +36,54 @@ npm run dev
 
 Open **http://127.0.0.1:3000** (use 127.0.0.1, not localhost, for Spotify OAuth).
 
+## Tests
+
+```bash
+npm test               # unit tests (Vitest): pacing math, song placement, closing-track fixes,
+                       # GPX/CSV parsing, Spotify + Strava response handling, the BPM route
+npm run test:coverage  # same, with a coverage report in coverage/
+npm run test:e2e       # browser tests (Playwright): builds, serves on :3100, and drives the
+                       # demo, imports, preview, share and branding flows on desktop + phone
+```
+
+First time on a new machine: `npx playwright install chromium`. If your environment already has a
+Chromium build, point at it with `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chrome npm run test:e2e`.
+
+GitHub Actions (`.github/workflows/ci.yml`) runs lint, type check, unit tests, build and the
+browser tests on every push to `main` and every pull request. If browser tests fail, the
+Playwright report is attached to the run.
+
+The e2e suite runs without API keys, so it covers the "not configured" paths for Spotify and
+Strava. The live OAuth flows still need a manual check with real accounts.
+
+## Branding (Spotify + Strava)
+
+Both APIs come with brand rules. What the app does:
+
+- **Spotify**
+  - The Spotify icon appears wherever Spotify playlist data is shown: playlist picker, tracklist,
+    share poster.
+  - Album art links to the track on Spotify, and the playlist links to the playlist ("Open Spotify").
+  - Artwork is never cropped, overlaid or animated.
+  - The icon is Spotify's official mark, in white or black only.
+- **Strava**
+  - The official **Connect with Strava** button starts OAuth.
+  - **Powered by Strava** appears with the runs list, on the map and on the share poster whenever
+    the course came from Strava.
+  - Imported courses carry a **View on Strava** link.
+  - The recording device gets credit ("Recorded on Garmin Forerunner 965"), as Strava now requires
+    for Garmin and other device partners.
+
+**One manual step:** Strava requires its official asset files, and their site can't be reached
+from the build environment. Download them from <https://developers.strava.com/guidelines/> and save
+two files into `public/brand/strava/`, named as listed in `public/brand/strava/README.md`. Until
+then, plain-text stand-ins render.
+
+Before a wider launch, re-read both guideline pages:
+[Spotify](https://developer.spotify.com/documentation/design) and
+[Strava](https://developers.strava.com/guidelines/). Spotify's quota-extension review checks
+attribution closely.
+
 ## Deploy on Render
 
 `render.yaml` is a Render Blueprint for one Node web service (free plan).

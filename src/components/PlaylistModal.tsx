@@ -16,6 +16,7 @@ import {
 } from "@/lib/spotify";
 import { useKD } from "@/lib/store";
 import type { Track } from "@/lib/types";
+import { SpotifyAttribution, SpotifyIcon } from "./brand";
 import { Modal, Tabs } from "./ui";
 
 export type Tab = "spotify" | "csv" | "demo";
@@ -34,8 +35,8 @@ export function PlaylistModal({
   const onClose = () => setTab(false);
   const setTracks = useKD((s) => s.setTracks);
 
-  const accept = (tracks: Track[], name: string, source: "spotify" | "csv" | "demo") => {
-    setTracks(tracks, name, source);
+  const accept = (tracks: Track[], name: string, source: "spotify" | "csv" | "demo", url?: string) => {
+    setTracks(tracks, name, source, url);
     const withBpm = tracks.filter((t) => t.bpm).length;
     notify(`${tracks.length} songs loaded${withBpm < tracks.length ? ` · ${tracks.length - withBpm} need a BPM (tap to set)` : ""}`);
     onClose();
@@ -52,7 +53,7 @@ export function PlaylistModal({
           { value: "demo", label: "Sample mix" },
         ]}
       />
-      {tab === "spotify" && <SpotifyTab onTracks={(t, n) => accept(t, n, "spotify")} />}
+      {tab === "spotify" && <SpotifyTab onTracks={(t, n, url) => accept(t, n, "spotify", url)} />}
       {tab === "csv" && <CsvTab onTracks={(t, n) => accept(t, n, "csv")} />}
       {tab === "demo" && (
         <div className="space-y-4">
@@ -69,7 +70,7 @@ export function PlaylistModal({
   );
 }
 
-function SpotifyTab({ onTracks }: { onTracks(t: Track[], name: string): void }) {
+function SpotifyTab({ onTracks }: { onTracks(t: Track[], name: string, url: string): void }) {
   // Only rendered inside an opened modal, so it's always client-side here.
   const [connected, setConnected] = useState(() => spotifyConnected());
   const [lists, setLists] = useState<PlaylistSummary[] | null>(null);
@@ -92,13 +93,14 @@ function SpotifyTab({ onTracks }: { onTracks(t: Track[], name: string): void }) 
     setBusy(id);
     setErr(null);
     try {
-      const { name, tracks } = await playlistTracks(id);
+      const { name, url, tracks } = await playlistTracks(id);
       if (!tracks.length) throw new Error("That playlist is empty.");
       setBusy("bpm");
       const bpm = await lookupBpms(tracks.map((t) => t.spotifyId).filter((x): x is string => !!x));
       onTracks(
         tracks.map((t) => ({ ...t, bpm: t.spotifyId ? bpm[t.spotifyId] : undefined })),
         name,
+        url,
       );
     } catch (e) {
       setErr((e as Error).message);
@@ -124,7 +126,8 @@ function SpotifyTab({ onTracks }: { onTracks(t: Track[], name: string): void }) 
       <div className="space-y-4">
         <p>Connect Spotify to pull in any playlist you own or collaborate on. We only read playlists, and save new ones when you ask.</p>
         <button className="btn bg-pink px-6 py-3 text-sm" onClick={() => startSpotifyLogin()}>
-          Connect Spotify
+          <SpotifyIcon size={18} />
+          Connect with Spotify
         </button>
         {err && <p className="font-bold text-coral">{err}</p>}
       </div>
@@ -136,6 +139,10 @@ function SpotifyTab({ onTracks }: { onTracks(t: Track[], name: string): void }) 
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-mono text-xs uppercase tracking-wider text-pink/70">Your playlists</span>
+        <SpotifyAttribution className="text-sm text-chalk" />
+      </div>
       <div className="flex flex-col gap-2 sm:flex-row">
         <input className="field" placeholder="search your playlists…" value={q} onChange={(e) => setQ(e.target.value)} />
         <input
@@ -163,17 +170,17 @@ function SpotifyTab({ onTracks }: { onTracks(t: Track[], name: string): void }) 
             key={l.id}
             onClick={() => load(l.id)}
             disabled={!!busy}
-            className="group rounded-2xl border-2 border-pink/10 bg-ink-3 p-2 text-left transition hover:border-coral"
+            className="rounded-xl bg-ink-3 p-2 text-left transition hover:bg-ink/40"
           >
-            <div className="aspect-square overflow-hidden rounded-xl bg-ink-3">
+            <div className="aspect-square overflow-hidden rounded-[4px] bg-ink-2">
               {l.image ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={l.image} alt="" className="h-full w-full object-cover transition group-hover:scale-105" />
+                <img src={l.image} alt="" className="h-full w-full object-cover" />
               ) : (
-                <div className="grid h-full place-items-center text-3xl">🎵</div>
+                <div className="grid h-full place-items-center text-3xl text-pink/40">♪</div>
               )}
             </div>
-            <div className="mt-2 truncate text-sm font-bold">{l.name}</div>
+            <div className="mt-2 truncate text-sm font-semibold" title={l.name}>{l.name}</div>
             <div className="font-mono text-[11px] text-pink/50">{l.count} songs</div>
           </button>
         ))}

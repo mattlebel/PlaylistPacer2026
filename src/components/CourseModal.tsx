@@ -7,6 +7,7 @@ import { buildCourse, rescaleCourse, type RawPoint } from "@/lib/geo";
 import { parseGpx } from "@/lib/gpx";
 import { useKD } from "@/lib/store";
 import type { Course } from "@/lib/types";
+import { ConnectWithStrava, PoweredByStrava } from "./brand";
 import { Modal, Tabs } from "./ui";
 
 export type Tab = "presets" | "gpx" | "strava";
@@ -181,7 +182,8 @@ function StravaTab({ onCourse, units }: { onCourse(c: Course): void; units: "mi"
       const r = await fetch(`/api/strava/import?url=${encodeURIComponent(ref)}`);
       const j = await r.json();
       if (!r.ok) throw new Error(j.error);
-      onCourse(rawToCourse(`strava-${j.kind}-${Date.now()}`, j.name, j.kind === "route" ? "strava-route" : "strava-activity", j.points));
+      const course = rawToCourse(`strava-${j.kind}-${Date.now()}`, j.name, j.kind === "route" ? "strava-route" : "strava-activity", j.points);
+      onCourse({ ...course, sourceUrl: j.url, device: j.device });
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -213,9 +215,7 @@ function StravaTab({ onCourse, units }: { onCourse(c: Course): void; units: "mi"
           </button>
         </div>
       ) : status.configured ? (
-        <a href="/api/strava/login" className="btn bg-pink px-6 py-3 text-sm">
-          Connect Strava
-        </a>
+        <ConnectWithStrava />
       ) : null}
 
       <div>
@@ -258,18 +258,21 @@ function StravaTab({ onCourse, units }: { onCourse(c: Course): void; units: "mi"
 
       {runs && (
         <div>
-          <h3 className="mb-2 font-mono text-xs uppercase tracking-wider text-pink/70">Your recent runs</h3>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <h3 className="font-mono text-xs uppercase tracking-wider text-pink/70">Your recent runs</h3>
+            <PoweredByStrava className="text-pink/70" />
+          </div>
           <ul className="max-h-72 space-y-2 overflow-y-auto pr-1">
             {runs.map((r) => (
               <li key={r.id}>
                 <button
                   onClick={() => importRef(`activities/${r.id}`)}
                   disabled={!!busy}
-                  className="flex w-full items-center gap-3 rounded-2xl border-2 border-pink/10 bg-ink-3 px-3 py-2 text-left transition hover:border-peach"
+                  className="flex w-full items-center gap-3 rounded-xl bg-ink-3 px-3 py-2 text-left transition hover:bg-ink/40"
                 >
                   <span className={`w-12 shrink-0 font-mono text-[10px] uppercase ${r.race ? "text-pink" : "text-pink/40"}`}>{r.race ? "race" : "run"}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-bold">{r.name}</span>
+                    <span className="block truncate font-semibold">{r.name}</span>
                     <span className="font-mono text-xs text-pink/60">
                       {new Date(r.date).toLocaleDateString()} · {fmtDist(r.distance, units)} {units} · {fmtClock(r.elapsed)}
                     </span>

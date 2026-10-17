@@ -53,7 +53,7 @@ function CloserCard({ plan }: { plan: Plan }) {
   return (
     <motion.div layout className={sleeve} style={{ background: onTime ? "var(--color-pink)" : "var(--color-coral)" }}>
       <Label>Closing track</Label>
-      <motion.p key={headline} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="font-display text-3xl font-extrabold leading-none tracking-tight">
+      <motion.p data-testid="closer-status" key={headline} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="font-display text-3xl font-extrabold leading-none tracking-tight">
         {headline}
       </motion.p>
       <p className="mt-3 truncate font-semibold">{c.segment.track.title}</p>
@@ -102,7 +102,7 @@ function LengthCard({ plan }: { plan: Plan }) {
   return (
     <div className={quiet}>
       <Label>Running time</Label>
-      <p className={`font-display text-3xl font-extrabold leading-none tracking-tight ${short ? "text-peach" : "text-chalk"}`}>
+      <p data-testid="running-time" className={`font-display text-3xl font-extrabold leading-none tracking-tight ${short ? "text-peach" : "text-chalk"}`}>
         {short ? `${fmtClock(stats.shortBy)} short` : `+${fmtClock(spare)}`}
       </p>
       <p className="mt-3 text-sm">
@@ -140,7 +140,7 @@ function TempoCard({ plan }: { plan: Plan }) {
           <circle key={i} cx={x} cy={y} r={2} fill="#F7D3D8" />
         ))}
       </svg>
-      <p className="font-mono text-[11px] text-pink/70">
+      <p data-testid="tempo-summary" className="font-mono text-[11px] text-pink/70">
         {stats.openingBpm ?? "—"} → {stats.closingBpm ?? "—"} bpm ·{" "}
         {ramp == null ? "add BPMs" : ramp > 8 ? "builds to the finish" : ramp < -8 ? "slows toward the finish" : "fairly flat"}
       </p>

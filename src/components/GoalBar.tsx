@@ -69,7 +69,7 @@ export function GoalBar({ plan }: { plan: Plan }) {
       </div>
       <div>
         <div className="label mb-1">avg pace</div>
-        <div className="font-display text-2xl font-bold tabular-nums tracking-tight text-chalk">{fmtPace(avgPace, s.units)}</div>
+        <div data-testid="avg-pace" className="font-display text-2xl font-bold tabular-nums tracking-tight text-chalk">{fmtPace(avgPace, s.units)}</div>
       </div>
       <div>
         <div className="label mb-1">pacing</div>

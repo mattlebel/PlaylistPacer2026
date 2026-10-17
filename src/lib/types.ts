@@ -34,6 +34,10 @@ export interface Course {
   approximate?: boolean;
   /** Original finish time in seconds, when the source had timestamps. */
   sourceTime?: number;
+  /** Link back to the original activity or route (Strava requires a "View on Strava" link). */
+  sourceUrl?: string;
+  /** Recording device, e.g. "Garmin Forerunner 965" (device partners require attribution). */
+  device?: string;
 }
 
 export interface Track {

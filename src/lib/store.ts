@@ -12,10 +12,12 @@ interface State {
   tracks: Track[];
   playlistName: string;
   playlistSource: "demo" | "spotify" | "csv" | null;
+  /** open.spotify.com link for Spotify playlists (Spotify requires linking back). */
+  playlistUrl: string | null;
   settings: PlanSettings;
   selectedKey: string | null;
   setCourse(c: Course, goal?: number): void;
-  setTracks(t: Track[], name: string, source: State["playlistSource"]): void;
+  setTracks(t: Track[], name: string, source: State["playlistSource"], url?: string): void;
   reorder(t: Track[]): void;
   updateTrack(key: string, patch: Partial<Track>): void;
   removeTrack(key: string): void;
@@ -43,6 +45,7 @@ export const useKD = create<State>()(
       tracks: [],
       playlistName: "",
       playlistSource: null,
+      playlistUrl: null,
       settings: DEFAULTS,
       selectedKey: null,
       setCourse: (course, goal) =>
@@ -54,11 +57,12 @@ export const useKD = create<State>()(
             strategy: course.hasTimes ? "ghost" : st.settings.strategy === "ghost" ? "even" : st.settings.strategy,
           },
         })),
-      setTracks: (tracks, playlistName, playlistSource) =>
+      setTracks: (tracks, playlistName, playlistSource, url) =>
         set((st) => ({
           tracks,
           playlistName,
           playlistSource,
+          playlistUrl: url ?? null,
           settings: { ...st.settings, closerKey: tracks.at(-1)?.key ?? null },
         })),
       reorder: (tracks) => set({ tracks }),
@@ -79,6 +83,7 @@ export const useKD = create<State>()(
           tracks,
           playlistName: DEMO_PLAYLIST_NAME,
           playlistSource: "demo",
+          playlistUrl: null,
           settings: {
             ...DEFAULTS,
             units: get().settings.units,
@@ -89,11 +94,12 @@ export const useKD = create<State>()(
     }),
     {
       name: "playlistpacer.v2",
-      partialize: ({ course, tracks, playlistName, playlistSource, settings }) => ({
+      partialize: ({ course, tracks, playlistName, playlistSource, playlistUrl, settings }) => ({
         course,
         tracks,
         playlistName,
         playlistSource,
+        playlistUrl,
         settings,
       }),
     },
