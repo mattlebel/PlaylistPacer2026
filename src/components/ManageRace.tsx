@@ -238,7 +238,7 @@ function RaceDay({ data, name }: { data: Manage; name: string }) {
     try {
       const url = await savePlaylist(
         `Don't peek: ${name}'s ${RACE.name}`,
-        "Planted by friends and family with Playlist Pacer. Press play at the start, in order, no shuffle.",
+        "Planted by friends and family with Playlist Pacer. In course order, so no shuffle. Play the next song each time you reach the next moment on your cue list.",
         cues.map((c) => c.playUri!),
       );
       setLink(url);
@@ -254,8 +254,9 @@ function RaceDay({ data, name }: { data: Manage; name: string }) {
       <div>
         <h2 className="font-display text-2xl font-bold">Race day</h2>
         <p className="mt-1 text-blush">
-          Download the playlist in Spotify before you leave so it plays without signal. When you reach each moment, tap Play.
-          The song stays a surprise until you hear it.
+          Download the playlist in Spotify before you leave so it plays without signal. The songs are in course order. Each
+          time you reach the next moment below, switch to the playlist and play the next song (or tap Play here). The song
+          stays a surprise until you hear it.
         </p>
       </div>
       {spotifyConfigured() && (
