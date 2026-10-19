@@ -4,8 +4,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { AppError } from "./repo";
 
 export function appOrigin(req: NextRequest) {
-  const configured = process.env.APP_URL ?? process.env.RENDER_EXTERNAL_URL;
-  return configured?.replace(/\/$/, "") ?? req.nextUrl.origin;
+  // `||`, not `??`: a blank env var (e.g. left empty in Render) means "not set".
+  const configured = process.env.APP_URL?.trim() || process.env.RENDER_EXTERNAL_URL?.trim();
+  return configured ? configured.replace(/\/$/, "") : req.nextUrl.origin;
 }
 
 /** Turn thrown AppErrors into JSON responses; anything else is a 500. */

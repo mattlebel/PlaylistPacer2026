@@ -4,7 +4,7 @@ import "@fontsource-variable/martian-mono";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
 
-const base = process.env.APP_URL ?? process.env.RENDER_EXTERNAL_URL;
+const base = process.env.APP_URL?.trim() || process.env.RENDER_EXTERNAL_URL?.trim();
 
 export const metadata: Metadata = {
   // Absolute URLs for link-preview images.
