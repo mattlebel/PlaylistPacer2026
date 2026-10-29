@@ -35,13 +35,8 @@ export const createRaceSchema = z.object({
 
 export const addSongSchema = z.object({
   mile: z.number().int().min(0).max(26),
-  /** Optional: shown as "from Sarah". */
-  name: z
-    .string()
-    .trim()
-    .max(40)
-    .optional()
-    .transform((s) => s || undefined),
+  /** Shown as "from Sarah". */
+  name: z.string().trim().min(1, "Add your name, so they know who picked it").max(40),
   song: songSchema,
 });
 
@@ -213,7 +208,7 @@ export async function addSong(db: Db, raceId: string, input: unknown, now = new 
           raceId,
           data.mile,
           slot,
-          data.name ?? null,
+          data.name,
           hashKey(editKey),
           songKey(data.song),
           data.song.spotifyId ?? null,

@@ -51,7 +51,7 @@ export async function createRace(request: APIRequestContext, runnerName = "Matt 
 }
 
 export async function addViaApi(request: APIRequestContext, raceId: string, body: { mile: number; name?: string; song: ReturnType<typeof song> }) {
-  const res = await request.post(`/api/races/${raceId}/plants`, { data: body });
+  const res = await request.post(`/api/races/${raceId}/plants`, { data: { name: "Sam", ...body } });
   expect(res.ok(), await res.text()).toBe(true);
   return (await res.json()) as { id: string; editKey: string };
 }
@@ -63,10 +63,18 @@ export async function typeSong(scope: Page | ReturnType<Page["locator"]>, title:
   await scope.getByRole("button", { name: "Use this song" }).first().click();
 }
 
-/** Opens a race's map and gets past the how-it-works popup. */
-export async function openMap(page: Page, raceId: string) {
+/** Answers the welcome popup: your name, then "Let's go". */
+export async function welcome(page: Page, name = "Dana") {
+  const intro = page.getByRole("dialog", { name: "How it works" });
+  await intro.getByLabel("First, what's your name?").fill(name);
+  await intro.getByRole("button", { name: "Let's go" }).click();
+  await expect(intro).toHaveCount(0);
+}
+
+/** Opens a race's map and gets past the welcome popup. */
+export async function openMap(page: Page, raceId: string, name = "Dana") {
   await page.goto(`/r/${raceId}`);
-  await page.getByRole("button", { name: "Let's go" }).click();
+  await welcome(page, name);
   await expect(marker(page, 0)).toBeVisible();
 }
 

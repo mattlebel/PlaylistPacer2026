@@ -6,26 +6,29 @@ test("a friend drags a song onto a mile", async ({ page, request }) => {
   await expect(page.getByRole("heading", { name: "Help Matt soundtrack 26.2" })).toBeVisible();
   const intro = page.getByRole("dialog", { name: "How it works" });
   await expect(intro.getByText("Drag it onto a mile")).toBeVisible();
+  // The welcome popup asks who you are before you start.
+  await expect(intro.getByRole("button", { name: "Let's go" })).toBeDisabled();
+  await intro.getByLabel("First, what's your name?").fill("Dana Scully");
   await intro.getByRole("button", { name: "Let's go" }).click();
-  await expect(marker(page, 15)).toHaveAccessibleName("Mile 15, Queensboro Bridge: 0 of 4 songs");
+  await expect(marker(page, 15)).toHaveAccessibleName("Mile 15, Queensboro Bridge: 0 of 3 songs");
+  await expect(page.getByLabel("Your name", { exact: true })).toHaveValue("Dana Scully");
 
-  await page.getByLabel("Your name (optional)").fill("Dana Scully");
   await typeSong(page, "Mr. Brightside", "The Killers");
   await expect(page.getByRole("button", { name: "Drag Mr. Brightside onto a mile" })).toBeVisible();
   await dragSongTo(page, 15);
 
   await expect(page.getByRole("status")).toHaveText("Added to Mile 15 · Queensboro Bridge");
-  await expect(marker(page, 15)).toHaveAccessibleName("Mile 15, Queensboro Bridge: 1 of 4 songs");
+  await expect(marker(page, 15)).toHaveAccessibleName("Mile 15, Queensboro Bridge: 1 of 3 songs");
   await expect(page.getByText("1 song on the course")).toBeVisible();
 
   // The mile's popup shows the song, first name only, and lets you take yours back.
   await marker(page, 15).click();
   const sheet = page.getByRole("dialog", { name: "Mile 15 · Queensboro Bridge" });
   await expect(sheet.getByText("The Killers · from Dana")).toBeVisible();
-  await expect(sheet.getByText("Open spot")).toHaveCount(3);
+  await expect(sheet.getByText("Open spot")).toHaveCount(2);
   await sheet.getByRole("button", { name: "Remove mine" }).click();
   await expect(page.getByRole("status")).toHaveText("Removed your song.");
-  await expect(sheet.getByText("Open spot")).toHaveCount(4);
+  await expect(sheet.getByText("Open spot")).toHaveCount(3);
 
   // The intro only shows once.
   await page.reload();
@@ -37,7 +40,7 @@ test("you can pick a mile without dragging", async ({ page, request }) => {
   const race = await createRace(request);
   await openMap(page, race.id);
   await typeSong(page, "Juice", "Lizzo");
-  await page.getByLabel("Or choose a mile").selectOption({ label: "Mile 8 · Barclays Center & Lafayette Ave (4 left)" });
+  await page.getByLabel("Or choose a mile").selectOption({ label: "Mile 8 · Barclays Center & Lafayette Ave (3 left)" });
   await page.getByRole("button", { name: "Add", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Added to Mile 8 · Barclays Center & Lafayette Ave");
 
@@ -52,10 +55,10 @@ test("you can pick a mile without dragging", async ({ page, request }) => {
 
 test("full miles and repeat songs are refused", async ({ page, request }) => {
   const race = await createRace(request);
-  for (const t of ["One", "Two", "Three", "Four"]) await addViaApi(request, race.id, { mile: 20, song: song(t, "X") });
+  for (const t of ["One", "Two", "Three"]) await addViaApi(request, race.id, { mile: 20, song: song(t, "X") });
   await addViaApi(request, race.id, { mile: 15, name: "Ana", song: song("Mr. Brightside", "The Killers") });
   await openMap(page, race.id);
-  await expect(marker(page, 20)).toHaveAccessibleName("Mile 20, The Bronx: 4 of 4 songs");
+  await expect(marker(page, 20)).toHaveAccessibleName("Mile 20, The Bronx: 3 of 3 songs");
 
   await typeSong(page, "Toxic", "Britney Spears");
   await expect(page.getByRole("option", { name: "Mile 20 · The Bronx (full)" })).toBeDisabled();
@@ -73,10 +76,26 @@ test("full miles and repeat songs are refused", async ({ page, request }) => {
 test("the map updates live as other people add songs", async ({ page, request }) => {
   const race = await createRace(request);
   await openMap(page, race.id);
-  await expect(marker(page, 26)).toHaveAccessibleName("Mile 26, The finish: 0 of 4 songs");
+  await expect(marker(page, 26)).toHaveAccessibleName("Mile 26, The finish: 0 of 3 songs");
   await addViaApi(request, race.id, { mile: 26, name: "Mom", song: song("Don't Stop Me Now", "Queen") });
-  await expect(marker(page, 26)).toHaveAccessibleName("Mile 26, The finish: 1 of 4 songs", { timeout: 15_000 });
+  await expect(marker(page, 26)).toHaveAccessibleName("Mile 26, The finish: 1 of 3 songs", { timeout: 15_000 });
   await expect(page.getByText("from Mom")).toBeVisible();
+});
+
+test("skipping the name in the welcome popup brings it back when you add a song", async ({ page, request }) => {
+  const race = await createRace(request);
+  await page.goto(`/r/${race.id}`);
+  await page.getByRole("dialog", { name: "How it works" }).getByRole("button", { name: "Close" }).click();
+  await typeSong(page, "Juice", "Lizzo");
+  await page.getByLabel("Or choose a mile").selectOption({ label: "Mile 9 · Clinton Hill (3 left)" });
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Add your name first, so Matt knows who picked it.");
+  const intro = page.getByRole("dialog", { name: "How it works" });
+  await intro.getByLabel("First, what's your name?").fill("Jules");
+  await intro.getByRole("button", { name: "Let's go" }).click();
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Added to Mile 9 · Clinton Hill");
+  await expect(page.getByText("from Jules")).toBeVisible();
 });
 
 test("link previews are personalized", async ({ request }) => {

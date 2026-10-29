@@ -16,8 +16,8 @@ export const RACE = {
   distance: 42195,
 } as const;
 
-/** How many songs fit on one mile marker. */
-export const SONGS_PER_MILE = 4;
+/** How many songs fit on one mile marker: about a mile of music at a typical marathon pace. */
+export const SONGS_PER_MILE = 3;
 
 /** Adding songs closes at 6am race morning, so the runner can save the final playlist before heading out. */
 export const ADDING_CLOSES_AT = new Date(`${RACE.date}T06:00:00${RACE.utcOffset}`);

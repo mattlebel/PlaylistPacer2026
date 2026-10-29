@@ -30,7 +30,7 @@ const JUST_BEFORE_CLOSE = new Date("2026-11-01T05:59:00-05:00");
 const CLOSED = new Date("2026-11-01T06:00:00-05:00");
 
 const newRace = (over: Record<string, unknown> = {}) => createRace(db, { runnerName: "Matt Lebel", runnerEmail: "Matt@Example.com", ...over });
-const add = (raceId: string, mile: number, title: string, name?: string, now = BEFORE) => addSong(db, raceId, { mile, name, song: song(title) }, now);
+const add = (raceId: string, mile: number, title: string, name = "Sam", now = BEFORE) => addSong(db, raceId, { mile, name, song: song(title) }, now);
 
 async function expectCode(p: Promise<unknown>, code: AppError["code"]) {
   await expect(p).rejects.toSatisfy((e) => e instanceof AppError && e.code === code);
@@ -79,7 +79,7 @@ describe("the live map", () => {
     const q = reg.miles.find((m) => m.n === 15)!;
     expect(q.songs.map((s) => [s.song.title, s.from])).toEqual([
       ["Mr. Brightside", "Sarah"],
-      ["Juice", undefined],
+      ["Juice", "Sam"],
     ]);
     expect(JSON.stringify(reg)).not.toContain("Connor");
     expect(JSON.stringify(reg)).not.toContain("edit_key");
@@ -93,11 +93,11 @@ describe("the live map", () => {
 describe("addSong", () => {
   it("adds a song to a mile and returns a key for removing it later", async () => {
     const r = await newRace();
-    const res = await addSong(db, r.id, { mile: 0, song: song("Empire State of Mind", "JAY-Z", sid("a")) }, BEFORE);
+    const res = await addSong(db, r.id, { mile: 0, name: "Dana", song: song("Empire State of Mind", "JAY-Z", sid("a")) }, BEFORE);
     expect(res.mile).toBe(0);
     expect(res.editKey.length).toBeGreaterThan(20);
     const [row] = await db.query<{ uri: string; slot: number; name: string | null }>("select * from plants");
-    expect(row).toMatchObject({ uri: `spotify:track:${sid("a")}`, slot: 0, name: null });
+    expect(row).toMatchObject({ uri: `spotify:track:${sid("a")}`, slot: 0, name: "Dana" });
   });
 
   it(`fits ${SONGS_PER_MILE} songs on a mile, then says it's full`, async () => {
@@ -112,7 +112,7 @@ describe("addSong", () => {
     const results = await Promise.allSettled(Array.from({ length: 8 }, (_, i) => add(r.id, 16, `Rush ${i}`)));
     expect(results.filter((x) => x.status === "fulfilled")).toHaveLength(SONGS_PER_MILE);
     const rows = await db.query<{ slot: number }>("select slot from plants where mile = 16 order by slot");
-    expect(rows.map((x) => x.slot)).toEqual([0, 1, 2, 3]);
+    expect(rows.map((x) => x.slot)).toEqual([0, 1, 2]);
   });
 
   it("reuses a freed spot", async () => {
@@ -129,13 +129,15 @@ describe("addSong", () => {
     await expectCode(add(r.id, 3, "Mr. Brightside - Remastered"), "song_taken");
   });
 
-  it("refuses miles that don't exist and bad songs", async () => {
+  it("refuses miles that don't exist, bad songs and a missing name", async () => {
     const r = await newRace();
+    await expectCode(addSong(db, r.id, { mile: 1, song: song("Nameless") }, BEFORE), "invalid");
+    await expectCode(add(r.id, 1, "Blank name", "  "), "invalid");
     await expectCode(add(r.id, 27, "Too far"), "invalid");
     await expectCode(add(r.id, -1, "Too early"), "invalid");
-    await expectCode(addSong(db, r.id, { mile: 1.5, song: song("Half") }, BEFORE), "invalid");
-    await expectCode(addSong(db, r.id, { mile: 1, song: { title: "", artist: "x" } }, BEFORE), "invalid");
-    await expectCode(addSong(db, r.id, { mile: 1, song: { ...song("x"), uri: "https://evil" } }, BEFORE), "invalid");
+    await expectCode(addSong(db, r.id, { mile: 1.5, name: "Sam", song: song("Half") }, BEFORE), "invalid");
+    await expectCode(addSong(db, r.id, { mile: 1, name: "Sam", song: { title: "", artist: "x" } }, BEFORE), "invalid");
+    await expectCode(addSong(db, r.id, { mile: 1, name: "Sam", song: { ...song("x"), uri: "https://evil" } }, BEFORE), "invalid");
   });
 
   it("closes at 6am race morning", async () => {
@@ -270,7 +272,7 @@ describe("upgrading a first-version database", () => {
         expect(q).toMatchObject({ from: "Sarah Connor", message: "The bridge is yours", isRunner: false });
 
         // And it keeps working: new songs land in the next free spot, and running the upgrade again (every restart) changes nothing.
-        await addSong(upgraded, "oldrace", { mile: 24, song: song("New one") }, BEFORE);
+        await addSong(upgraded, "oldrace", { mile: 24, name: "Sam", song: song("New one") }, BEFORE);
         await upgraded.close();
         upgraded = await createDb({ dataDir: dir });
         const reg = await getRegistry(upgraded, "oldrace", BEFORE);

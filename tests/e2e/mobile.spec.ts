@@ -13,7 +13,7 @@ test("friends can drag a song onto the map from a phone", async ({ page, request
   await expect(marker(page, 16)).toBeInViewport();
   await dragSongTo(page, 16);
   await expect(page.getByRole("status")).toHaveText("Added to Mile 16 · First Avenue");
-  await expect(marker(page, 16)).toHaveAccessibleName("Mile 16, First Avenue: 1 of 4 songs");
+  await expect(marker(page, 16)).toHaveAccessibleName("Mile 16, First Avenue: 1 of 3 songs");
 });
 
 test("home and setup fit a phone", async ({ page }) => {

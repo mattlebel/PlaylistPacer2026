@@ -1,14 +1,14 @@
-import { addViaApi, createRace, expect, managePath, setClock, song, test, TIMES } from "./fixtures";
+import { addViaApi, createRace, expect, managePath, setClock, song, test, TIMES, welcome } from "./fixtures";
 
 test("the runner sees every song with full names and can remove any", async ({ page, request }) => {
   const race = await createRace(request);
   await addViaApi(request, race.id, { mile: 15, name: "Sarah Connor", song: song("Mr. Brightside", "The Killers") });
-  await addViaApi(request, race.id, { mile: 15, song: song("Juice", "Lizzo") });
+  await addViaApi(request, race.id, { mile: 15, name: "Dana", song: song("Juice", "Lizzo") });
   await addViaApi(request, race.id, { mile: 20, name: "Jules", song: song("Can't Hold Us", "Macklemore") });
   await page.goto(managePath(race));
   await expect(page.getByRole("heading", { name: "3 songs on 2 miles" })).toBeVisible();
   await expect(page.getByText("from Sarah Connor")).toBeVisible();
-  await expect(page.getByText("from someone who didn't leave a name")).toBeVisible();
+  await expect(page.getByText("from Dana")).toBeVisible();
   // No Spotify keys in tests: the page says how to build the playlist instead.
   await expect(page.getByText(/Spotify isn't connected to this app yet/)).toBeVisible();
 
@@ -23,12 +23,12 @@ test("race morning: adding closes at 6am, and the map stays up", async ({ page, 
   setClock(TIMES.raceMorning);
 
   await page.goto(`/r/${race.id}`);
-  await page.getByRole("button", { name: "Let's go" }).click();
+  await welcome(page);
   await expect(page.getByRole("heading", { name: "Adding is closed" })).toBeVisible();
   await expect(page.getByLabel("Search for a song")).toHaveCount(0);
   await expect(page.getByText("from Coach")).toBeVisible();
 
-  const res = await request.post(`/api/races/${race.id}/plants`, { data: { mile: 2, song: song("Late", "X") } });
+  const res = await request.post(`/api/races/${race.id}/plants`, { data: { mile: 2, name: "Sam", song: song("Late", "X") } });
   expect(res.status()).toBe(403);
 });
 

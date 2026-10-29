@@ -5,7 +5,7 @@ import { METERS_PER_MILE } from "@/lib/geo";
 describe("NYC Marathon miles", () => {
   it("has a marker for the start and every mile through 26", () => {
     expect(MILES.map((m) => m.n)).toEqual(Array.from({ length: 27 }, (_, i) => i));
-    expect(SONGS_PER_MILE).toBe(4);
+    expect(SONGS_PER_MILE).toBe(3);
   });
 
   it("puts each marker at its mile, in course order, on the course", () => {

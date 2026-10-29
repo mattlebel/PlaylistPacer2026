@@ -1,7 +1,7 @@
 # Playlist Pacer
 
 **Your marathon, soundtracked by your people.** Generate one link. Friends and family open a map of
-your course, search for a song, and drag it onto a mile marker. Each mile holds 4 songs, and everyone
+your course, search for a song, and drag it onto a mile marker. Each mile holds 3 songs, and everyone
 sees the map fill up live. You hear every song right there on race day.
 
 Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up for that one race for now.
@@ -12,17 +12,17 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
   - a **share link** (`/r/<id>`)
   - a **private link** (`/r/<id>/manage#key=…`)
 - **Friends:** open the share link and see a quick "how it works" popup, then:
-  - The map shows 27 markers (the start and miles 1–26). Each marker is a stack of up to 4 chips
+  - The map shows 27 markers (the start and miles 1–26). Each marker is a stack of up to 3 chips
     showing how full that mile is, and the big landmarks get a star.
   - Search for a song (or type it in), and it becomes a bubble you drag onto a marker.
   - You can also pick a mile from a dropdown, or tap a mile and add a song from its popup. Both work
     without dragging.
-  - Adding a name is optional; it shows up as "from Sarah".
+  - The welcome popup asks for your first name; it shows on your songs as "from Sarah".
   - You can remove your own song from the same device.
 - **Live:** the map refreshes every few seconds, so everyone sees what's been picked and which miles
   still have room.
 - **Rules, enforced in the database:**
-  - Up to 4 songs per mile. Each song takes a numbered spot, so two people dropping at once can't
+  - Up to 3 songs per mile (about a mile of music at a typical pace). Each song takes a numbered spot, so two people dropping at once can't
     overfill a mile.
   - No duplicate songs anywhere on the course, including other versions of the same song.
   - Adding closes at 6am on race morning.

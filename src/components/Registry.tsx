@@ -67,9 +67,11 @@ export function Registry() {
     // First load, plus things only this browser knows: your name, your songs, and whether you've seen the intro.
     /* eslint-disable react-hooks/set-state-in-effect */
     load();
-    setName(store.get("pp.name") ?? "");
+    const saved = store.get("pp.name") ?? "";
+    setName(saved);
     setMine(editKeys());
-    if (!store.get("pp.howto")) setHowto(true);
+    // The welcome popup also asks for your name, so show it until we have one.
+    if (!store.get("pp.howto") || !saved.trim()) setHowto(true);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [load]);
 
@@ -85,6 +87,11 @@ export function Registry() {
     () => (data?.miles ?? []).map((m) => ({ count: m.songs.length, hot: hot === m.n, selected: open === m.n })),
     [data, hot, open],
   );
+
+  const saveName = (v: string) => {
+    setName(v);
+    store.set("pp.name", v);
+  };
 
   const closeHowto = () => {
     setHowto(false);
@@ -106,6 +113,11 @@ export function Registry() {
 
   const add = async (mile: number, song: Song) => {
     if (!data || busy) return false;
+    if (!name.trim()) {
+      setToast(`Add your name first, so ${first(data.runnerName)} knows who picked it.`);
+      setHowto(true);
+      return false;
+    }
     const target = data.miles.find((m) => m.n === mile);
     if (target && target.songs.length >= data.perMile) {
       setToast(`${mileLabel(mile)} is full. Try a mile nearby!`);
@@ -115,7 +127,7 @@ export function Registry() {
     try {
       const res = await api<{ id: string; editKey: string }>(`/api/races/${id}/plants`, {
         method: "POST",
-        body: JSON.stringify({ mile, song, name: name.trim() || undefined }),
+        body: JSON.stringify({ mile, song, name: name.trim() }),
       });
       rememberEditKey(res.id, res.editKey);
       setMine(editKeys());
@@ -216,7 +228,7 @@ export function Registry() {
               </div>
               <div>
                 <label htmlFor="your-name" className="label mb-2 block">
-                  Your name (optional)
+                  Your name
                 </label>
                 <input
                   id="your-name"
@@ -225,10 +237,7 @@ export function Registry() {
                   maxLength={40}
                   autoComplete="given-name"
                   placeholder={`So ${runner} knows who picked it`}
-                  onChange={(e) => {
-                    setName(e.target.value);
-                    store.set("pp.name", e.target.value);
-                  }}
+                  onChange={(e) => saveName(e.target.value)}
                 />
               </div>
               <SongSearch onPick={pickSong} inputId={SEARCH_ID} />
@@ -301,9 +310,32 @@ export function Registry() {
             </li>
           ))}
         </ol>
-        <button className="btn mt-6 w-full bg-pink px-7 py-4 text-base sm:w-auto" onClick={closeHowto}>
-          Let&apos;s go
-        </button>
+        <form
+          className="mt-6 border-t border-pink/15 pt-5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (name.trim()) closeHowto();
+          }}
+        >
+          <label htmlFor="welcome-name" className="font-display text-xl font-bold">
+            First, what&apos;s your name?
+          </label>
+          <p className="mb-3 text-sm text-blush">It shows on the songs you add, like &ldquo;from Sarah&rdquo;.</p>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <input
+              id="welcome-name"
+              className="field"
+              value={name}
+              maxLength={40}
+              autoComplete="given-name"
+              placeholder="Your first name"
+              onChange={(e) => saveName(e.target.value)}
+            />
+            <button type="submit" className="btn shrink-0 bg-pink px-7 py-3.5 text-base" disabled={!name.trim()}>
+              Let&apos;s go
+            </button>
+          </div>
+        </form>
       </Modal>
 
       <Toast message={toast} onDone={() => setToast(null)} />
