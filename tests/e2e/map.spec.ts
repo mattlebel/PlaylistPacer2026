@@ -98,6 +98,40 @@ test("skipping the name in the welcome popup brings it back when you add a song"
   await expect(page.getByText("from Jules")).toBeVisible();
 });
 
+test("pausing mid-drag zooms the map in, and it zooms back out after the drop", async ({ page, request }) => {
+  const race = await createRace(request);
+  await openMap(page, race.id);
+  await typeSong(page, "Juice", "Lizzo");
+  // Distance on screen between the course points for miles 16 and 17 (the cards beside them can switch sides).
+  const gap = () =>
+    page.evaluate(() => {
+      const at = (n: number) => document.querySelector(`[data-drop-mile="${n}"]`)!.closest(".maplibregl-marker")!.getBoundingClientRect();
+      const [a, b] = [at(16), at(17)];
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    });
+  const before = await gap();
+
+  const chip = (await page.getByRole("button", { name: /^Drag / }).boundingBox())!;
+  const m = (await marker(page, 17).boundingBox())!;
+  const from = { x: chip.x + 24, y: chip.y + chip.height / 2 };
+  const near = { x: m.x + m.width / 2 + 20, y: m.y + m.height / 2 + 20 };
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  for (let i = 1; i <= 12; i++) await page.mouse.move(from.x + ((near.x - from.x) * i) / 12, from.y + ((near.y - from.y) * i) / 12);
+  // Hold still over the map: it zooms in toward the pointer, spreading the miles apart.
+  await expect.poll(gap, { timeout: 5000 }).toBeGreaterThan(before * 1.8);
+  // Keep holding: it zooms one more step, then stops so the miles stay findable.
+  await expect.poll(gap, { timeout: 5000 }).toBeGreaterThan(before * 3.5);
+  await page.waitForTimeout(1500);
+  expect(await gap()).toBeLessThan(before * 4.5);
+
+  const t = (await marker(page, 17).boundingBox())!;
+  for (let i = 1; i <= 4; i++) await page.mouse.move(near.x + ((t.x + t.width / 2 - near.x) * i) / 4, near.y + ((t.y + t.height / 2 - near.y) * i) / 4);
+  await page.mouse.up();
+  await expect(page.getByRole("status")).toHaveText("Added to Mile 17 · Upper East Side");
+  await expect.poll(gap, { timeout: 5000 }).toBeLessThan(before * 1.2);
+});
+
 test("link previews are personalized", async ({ request }) => {
   const race = await createRace(request, "Priya Patel");
   await addViaApi(request, race.id, { mile: 1, song: song("Run the World", "Beyoncé") });

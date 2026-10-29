@@ -12,7 +12,7 @@ import { spotifyTrackUrl } from "@/lib/spotify";
 import type { Song } from "@/lib/types";
 import { SpotifyIcon } from "./brand";
 import { ChipStack } from "./ChipStack";
-import { CourseMap, type MarkerState } from "./CourseMap";
+import { CourseMap, type CourseMapHandle, type MarkerState } from "./CourseMap";
 import { SongSearch } from "./SongSearch";
 import { Modal, Toast } from "./ui";
 
@@ -54,6 +54,7 @@ export function Registry() {
   const [mine, setMine] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const mapRef = useRef<HTMLDivElement>(null);
+  const courseMap = useRef<CourseMapHandle>(null);
 
   const load = useCallback(async () => {
     try {
@@ -207,7 +208,7 @@ export function Registry() {
 
       <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
         <div ref={mapRef} className="panel scroll-mt-2 overflow-hidden lg:order-2">
-          <CourseMap markers={markers} perMile={data.perMile} dragging={dragging} onSelect={setOpen} className="h-[60dvh] min-h-[380px] lg:h-[700px]" />
+          <CourseMap ref={courseMap} markers={markers} perMile={data.perMile} dragging={dragging} onSelect={setOpen} className="h-[60dvh] min-h-[380px] lg:h-[700px]" />
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 font-mono text-[10px] uppercase text-pink/80">
             <span className="flex items-center gap-2">
               <ChipStack count={2} max={data.perMile} size="sm" /> songs on a mile
@@ -250,8 +251,12 @@ export function Registry() {
                   busy={busy}
                   onDragState={(d) => {
                     setDragging(d);
-                    if (!d) setHot(null);
+                    if (!d) {
+                      setHot(null);
+                      courseMap.current?.dragEnd();
+                    }
                   }}
+                  onMove={(x, y) => courseMap.current?.dragAt(x, y)}
                   onHover={setHot}
                   onDrop={(n) => add(n, held)}
                   onDiscard={() => setHeld(null)}
@@ -367,6 +372,7 @@ function HeldSong({
   busy,
   onDragState,
   onHover,
+  onMove,
   onDrop,
   onDiscard,
 }: {
@@ -376,14 +382,27 @@ function HeldSong({
   busy: boolean;
   onDragState(dragging: boolean): void;
   onHover(n: number | null): void;
+  onMove(x: number, y: number): void;
   onDrop(n: number): void;
   onDiscard(): void;
 }) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const [choice, setChoice] = useState("");
-  const drag = useRef<{ x: number; y: number; active: boolean; target: number | null } | null>(null);
+  const drag = useRef<{ x: number; y: number; lastX: number; lastY: number; active: boolean; target: number | null; tick: ReturnType<typeof setInterval> | 0 } | null>(null);
+
+  // Markers move under a still pointer while the map zooms or pans, so keep checking what's underneath.
+  const retarget = () => {
+    const d = drag.current;
+    if (!d?.active) return;
+    const t = dropTargetAt(d.lastX, d.lastY);
+    if (t !== d.target) {
+      d.target = t;
+      onHover(t);
+    }
+  };
 
   const end = () => {
+    if (drag.current?.tick) clearInterval(drag.current.tick);
     drag.current = null;
     setPos(null);
     onDragState(false);
@@ -406,7 +425,7 @@ function HeldSong({
           onPointerDown={(e) => {
             if (busy || e.button !== 0) return;
             e.currentTarget.setPointerCapture(e.pointerId);
-            drag.current = { x: e.clientX, y: e.clientY, active: false, target: null };
+            drag.current = { x: e.clientX, y: e.clientY, lastX: e.clientX, lastY: e.clientY, active: false, target: null, tick: 0 };
           }}
           onPointerMove={(e) => {
             const d = drag.current;
@@ -414,16 +433,17 @@ function HeldSong({
             if (!d.active && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 6) return;
             if (!d.active) {
               d.active = true;
+              d.tick = setInterval(retarget, 120);
               onDragState(true);
             }
+            d.lastX = e.clientX;
+            d.lastY = e.clientY;
             setPos({ x: e.clientX, y: e.clientY });
-            const t = dropTargetAt(e.clientX, e.clientY);
-            if (t !== d.target) {
-              d.target = t;
-              onHover(t);
-            }
+            onMove(e.clientX, e.clientY);
+            retarget();
           }}
           onPointerUp={() => {
+            retarget();
             const d = drag.current;
             end();
             if (d?.active && d.target !== null) onDrop(d.target);

@@ -14,7 +14,9 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
 - **Friends:** open the share link and see a quick "how it works" popup, then:
   - The map shows 27 markers (the start and miles 1–26). Each marker is a stack of up to 3 chips
     showing how full that mile is, and the big landmarks get a star.
-  - Search for a song (or type it in), and it becomes a bubble you drag onto a marker.
+  - Search for a song (or type it in), and it becomes a bubble you drag onto a marker. Pause while
+    dragging and the map zooms in toward the bubble (up to two steps) so crowded miles spread out.
+    Push against an edge to pan. After the drop it zooms back out to the whole course.
   - You can also pick a mile from a dropdown, or tap a mile and add a song from its popup. Both work
     without dragging.
   - The welcome popup asks for your first name; it shows on your songs as "from Sarah".

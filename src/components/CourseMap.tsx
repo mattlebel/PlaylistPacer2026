@@ -1,7 +1,7 @@
 "use client";
 
 import { Map as MLMap, Marker, NavigationControl, setWorkerUrl, type StyleSpecification } from "maplibre-gl";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { createPortal } from "react-dom";
 import { bounds, makePointLookup } from "@/lib/geo";
 import { MILES, mileLabel, raceCourse } from "@/lib/race";
@@ -101,6 +101,24 @@ function placeCards(map: MLMap): { mode: Mode; offsets: Offset[] } {
   return { mode, offsets: placed as Offset[] };
 }
 
+const PADDING = { top: 64, bottom: 48, left: 48, right: 48 };
+
+/** Drag helpers: pause over the map and it zooms in toward you; push against an edge and it pans. */
+const DWELL_MS = 380;
+const NEXT_STEP_MS = 1100;
+const ZOOM_STEP = 1;
+/** How far in a drag can zoom, past the whole-course view: enough to separate the miles, not lose them. */
+const MAX_DRAG_ZOOM_IN = 2;
+const EDGE_PX = 44;
+const EDGE_SPEED = 9;
+
+export interface CourseMapHandle {
+  /** The song being dragged is at this point on screen (client coordinates). */
+  dragAt(x: number, y: number): void;
+  /** The drag finished, dropped or not: settle back to the whole course. */
+  dragEnd(): void;
+}
+
 export interface MarkerState {
   count: number;
   /** Highlighted as the drop target while a song is being dragged. */
@@ -115,12 +133,14 @@ export function CourseMap({
   dragging = false,
   onSelect,
   className = "",
+  ref,
 }: {
   markers: MarkerState[];
   perMile: number;
   dragging?: boolean;
   onSelect?(n: number): void;
   className?: string;
+  ref?: Ref<CourseMapHandle>;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<MLMap | null>(null);
@@ -135,6 +155,90 @@ export function CourseMap({
     if (map.current) setLayout(placeCards(map.current));
   }, []);
 
+  // While a song is dragged over the map: zoom toward where it pauses, pan at the edges.
+  const drag = useRef({
+    anchor: null as { x: number; y: number } | null,
+    timer: 0 as ReturnType<typeof setTimeout> | 0,
+    raf: 0,
+    edge: { dx: 0, dy: 0 },
+    baseZoom: null as number | null,
+    settle: 0 as ReturnType<typeof setTimeout> | 0,
+  });
+
+  useImperativeHandle(ref, () => {
+    const st = drag.current;
+    const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const stopEdge = () => {
+      if (st.raf) cancelAnimationFrame(st.raf);
+      st.raf = 0;
+    };
+    const panLoop = () => {
+      const m = map.current;
+      if (!m || (!st.edge.dx && !st.edge.dy)) return stopEdge();
+      m.panBy([st.edge.dx * EDGE_SPEED, st.edge.dy * EDGE_SPEED], { duration: 0 });
+      st.raf = requestAnimationFrame(panLoop);
+    };
+    const zoomAt = (x: number, y: number) => {
+      const m = map.current;
+      if (!m) return;
+      const z = m.getZoom();
+      const target = Math.min(z + ZOOM_STEP, (st.baseZoom ?? z) + MAX_DRAG_ZOOM_IN);
+      if (target - z < 0.2) return;
+      const r = m.getContainer().getBoundingClientRect();
+      m.easeTo({ zoom: target, around: m.unproject([x - r.left, y - r.top]), duration: reduced() ? 0 : 450 });
+      // Still hovering here a bit later? Zoom in another step.
+      st.timer = setTimeout(() => zoomAt(x, y), NEXT_STEP_MS);
+    };
+    return {
+      dragAt(x, y) {
+        const m = map.current;
+        if (!m) return;
+        if (st.settle) clearTimeout(st.settle);
+        st.settle = 0;
+        st.baseZoom ??= m.getZoom();
+        const r = m.getContainer().getBoundingClientRect();
+        const inside = x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+        if (!inside) {
+          if (st.timer) clearTimeout(st.timer);
+          st.anchor = null;
+          st.edge = { dx: 0, dy: 0 };
+          return stopEdge();
+        }
+        // Only pan once zoomed in; at the overview the whole course is already on screen.
+        const zoomedIn = m.getZoom() > st.baseZoom + 0.3;
+        st.edge = zoomedIn
+          ? { dx: x < r.left + EDGE_PX ? -1 : x > r.right - EDGE_PX ? 1 : 0, dy: y < r.top + EDGE_PX ? -1 : y > r.bottom - EDGE_PX ? 1 : 0 }
+          : { dx: 0, dy: 0 };
+        if ((st.edge.dx || st.edge.dy) && !st.raf) st.raf = requestAnimationFrame(panLoop);
+        if (!st.anchor || Math.hypot(x - st.anchor.x, y - st.anchor.y) > 14) {
+          st.anchor = { x, y };
+          if (st.timer) clearTimeout(st.timer);
+          st.timer = setTimeout(() => zoomAt(x, y), DWELL_MS);
+        }
+      },
+      dragEnd() {
+        if (st.timer) clearTimeout(st.timer);
+        stopEdge();
+        st.anchor = null;
+        st.edge = { dx: 0, dy: 0 };
+        const m = map.current;
+        const zoomed = m && st.baseZoom !== null && m.getZoom() > st.baseZoom + 0.3;
+        st.baseZoom = null;
+        // Give the drop a moment to land, then show the whole course again.
+        if (m && zoomed) st.settle = setTimeout(() => m.fitBounds(bounds(raceCourse()), { padding: PADDING, duration: reduced() ? 0 : 800 }), 900);
+      },
+    };
+  }, []);
+
+  useEffect(() => {
+    const st = drag.current;
+    return () => {
+      if (st.timer) clearTimeout(st.timer);
+      if (st.settle) clearTimeout(st.settle);
+      if (st.raf) cancelAnimationFrame(st.raf);
+    };
+  }, []);
+
   useEffect(() => {
     let disposed = false;
     const course = raceCourse();
@@ -146,7 +250,7 @@ export function CourseMap({
         container: box.current,
         style,
         bounds: bounds(course),
-        fitBoundsOptions: { padding: { top: 64, bottom: 48, left: 48, right: 48 } },
+        fitBoundsOptions: { padding: PADDING },
         attributionControl: { compact: true },
         dragRotate: false,
         pitchWithRotate: false,
