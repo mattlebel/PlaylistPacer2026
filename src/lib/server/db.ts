@@ -1,4 +1,5 @@
 import "server-only";
+import { LEGACY_MOMENT_MILE } from "../race";
 
 /**
  * Minimal SQL interface over two drivers:
@@ -17,8 +18,8 @@ create table if not exists races (
   runner_name text not null,
   runner_email text,
   race text not null,
-  goal_sec integer not null check (goal_sec between 7200 and 28800),
-  start_time timestamptz not null,
+  goal_sec integer check (goal_sec between 7200 and 28800),
+  start_time timestamptz,
   revealed_at timestamptz,
   created_at timestamptz not null default now()
 );
@@ -26,9 +27,11 @@ create table if not exists races (
 create table if not exists plants (
   id text primary key,
   race_id text not null references races(id) on delete cascade,
-  moment text not null,
+  mile integer not null check (mile between 0 and 26),
+  slot integer not null,
+  moment text,
   is_runner boolean not null default false,
-  name text not null,
+  name text,
   email text,
   edit_key_hash text,
   song_key text not null,
@@ -41,12 +44,33 @@ create table if not exists plants (
   message text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint plants_moment_unique unique (race_id, moment),
   constraint plants_song_unique unique (race_id, song_key)
 );
 
-create index if not exists plants_race_idx on plants (race_id);
+create index if not exists plants_race_idx on plants (race_id)
 `;
+
+/**
+ * Upgrades a database from the first version (one song per named moment) in place.
+ * Every statement is safe to run again, and does nothing on a fresh database.
+ */
+const MIGRATIONS = [
+  "alter table races alter column goal_sec drop not null",
+  "alter table races alter column start_time drop not null",
+  "alter table plants add column if not exists mile integer",
+  "alter table plants add column if not exists slot integer",
+  "alter table plants alter column moment drop not null",
+  "alter table plants alter column name drop not null",
+  "alter table plants drop constraint if exists plants_moment_unique",
+  `update plants set mile = case moment ${Object.entries(LEGACY_MOMENT_MILE)
+    .map(([m, n]) => `when '${m}' then ${n}`)
+    .join(" ")} else 0 end where mile is null`,
+  `update plants p set slot = r.slot from (
+     select id, (row_number() over (partition by race_id, mile order by created_at, id) - 1)::int as slot from plants
+   ) r where p.id = r.id and p.slot is null`,
+  // Up to SONGS_PER_MILE songs share a mile; each takes one numbered slot, so two people can't overfill it.
+  "create unique index if not exists plants_slot_unique on plants (race_id, mile, slot)",
+];
 
 async function connectPostgres(url: string): Promise<Db> {
   const { default: postgres } = await import("postgres");
@@ -76,6 +100,7 @@ async function connectPglite(dataDir: string): Promise<Db> {
 export async function createDb(opts: { url?: string; dataDir?: string } = {}): Promise<Db> {
   const db = opts.url ? await connectPostgres(opts.url) : await connectPglite(opts.dataDir ?? ".data/pglite");
   for (const stmt of SCHEMA.split(";").map((s) => s.trim()).filter(Boolean)) await db.query(stmt);
+  for (const stmt of MIGRATIONS) await db.query(stmt);
   return db;
 }
 

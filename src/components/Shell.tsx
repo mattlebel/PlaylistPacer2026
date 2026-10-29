@@ -11,7 +11,7 @@ export function Shell({ children, cta = true }: { children: ReactNode; cta?: boo
         </Link>
         {cta && (
           <Link href="/new" className="btn btn-ghost px-4 py-2 text-sm">
-            Set up your race
+            Get your link
           </Link>
         )}
       </header>

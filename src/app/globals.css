@@ -161,6 +161,21 @@ body::before {
   color: var(--color-mute) !important;
 }
 
+/* The song you're holding gives a little nudge: "drag me". */
+@keyframes nudge {
+  0%,
+  70%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  78% {
+    transform: translateY(-3px) rotate(-1.5deg);
+  }
+  86% {
+    transform: translateY(0) rotate(1.5deg);
+  }
+}
+
 ::selection {
   background: var(--color-pink);
   color: var(--color-ink);

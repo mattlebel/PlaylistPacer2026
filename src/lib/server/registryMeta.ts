@@ -1,5 +1,5 @@
 import "server-only";
-import { RACE } from "../race";
+import { MILES, RACE } from "../race";
 import { getDb } from "./db";
 import { getRegistry } from "./repo";
 import { now } from "./clock";
@@ -8,11 +8,12 @@ import { now } from "./clock";
 export async function registrySummary(id: string) {
   try {
     const reg = await getRegistry(await getDb(), id, now());
-    const friend = reg.moments.filter((m) => m.owner === "friend");
     return {
       name: reg.runnerName.trim().split(/\s+/)[0],
-      planted: friend.filter((m) => m.status === "claimed").length,
-      total: friend.length,
+      songs: reg.total,
+      milesOpen: reg.miles.filter((m) => m.songs.length < reg.perMile).length,
+      miles: MILES.length,
+      capacity: MILES.length * reg.perMile,
       race: RACE.name,
     };
   } catch {

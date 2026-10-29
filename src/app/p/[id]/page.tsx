@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { EditPlant } from "@/components/EditPlant";
 import { Shell } from "@/components/Shell";
 
-export const metadata: Metadata = { title: "Your planted song · Playlist Pacer", robots: { index: false } };
+export const metadata: Metadata = { title: "Your song · Playlist Pacer", robots: { index: false } };
 
 export default function EditPlantPage() {
   return (

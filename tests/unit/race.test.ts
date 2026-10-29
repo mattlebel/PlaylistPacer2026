@@ -1,44 +1,53 @@
 import { describe, expect, it } from "vitest";
-import { fmtTimeOfDay, FRIEND_MOMENTS, MOMENTS, momentEtas, momentOffsets, RACE, raceCourse, RUNNER_MOMENTS, startInstant } from "@/lib/race";
+import { ADDING_CLOSES_AT, fmtTimeOfDay, LEGACY_MOMENT_MILE, MILES, mileByN, mileLabel, RACE, raceCourse, SONGS_PER_MILE } from "@/lib/race";
+import { METERS_PER_MILE } from "@/lib/geo";
 
-describe("NYC Marathon moments", () => {
-  it("gives the runner start, halfway and finish, and friends the rest", () => {
-    expect(RUNNER_MOMENTS.map((m) => m.id)).toEqual(["start", "half", "finish"]);
-    expect(FRIEND_MOMENTS).toHaveLength(13);
-    expect(new Set(MOMENTS.map((m) => m.id)).size).toBe(MOMENTS.length);
+describe("NYC Marathon miles", () => {
+  it("has a marker for the start and every mile through 26", () => {
+    expect(MILES.map((m) => m.n)).toEqual(Array.from({ length: 27 }, (_, i) => i));
+    expect(SONGS_PER_MILE).toBe(4);
   });
 
-  it("is in course order and spaced so songs don't run into each other", () => {
-    for (let i = 1; i < MOMENTS.length; i++) {
-      expect(MOMENTS[i].d - MOMENTS[i - 1].d).toBeGreaterThanOrEqual(1200);
-    }
-    expect(MOMENTS.at(-1)!.d).toBeLessThan(RACE.distance);
-    expect(MOMENTS.find((m) => m.id === "half")!.d).toBe(21097.5);
-  });
-
-  it("sits on the course", () => {
+  it("puts each marker at its mile, in course order, on the course", () => {
     const course = raceCourse();
     expect(course.distance).toBe(RACE.distance);
-    for (const m of MOMENTS) expect(m.d).toBeLessThanOrEqual(course.distance);
+    for (const m of MILES) {
+      expect(Math.abs(m.d - m.n * METERS_PER_MILE)).toBeLessThan(1);
+      expect(m.d).toBeLessThanOrEqual(RACE.distance);
+    }
+  });
+
+  it("gives every mile a name and a note, and stars the big moments", () => {
+    for (const m of MILES) {
+      expect(m.title.length).toBeGreaterThan(3);
+      expect(m.note.length).toBeGreaterThan(10);
+    }
+    expect(MILES.filter((m) => m.landmark).map((m) => m.n)).toEqual([0, 1, 8, 13, 15, 16, 20, 23, 26]);
+  });
+
+  it("labels miles", () => {
+    expect(mileLabel(0)).toBe("Start");
+    expect(mileLabel(15)).toBe("Mile 15");
+    expect(mileByN(15)?.title).toBe("Queensboro Bridge");
+    expect(mileByN(27)).toBeUndefined();
+  });
+
+  it("moves every first-version moment onto a real mile, with room to spare", () => {
+    const perMile = new Map<number, number>();
+    for (const n of Object.values(LEGACY_MOMENT_MILE)) {
+      expect(mileByN(n)).toBeDefined();
+      perMile.set(n, (perMile.get(n) ?? 0) + 1);
+    }
+    for (const count of perMile.values()) expect(count).toBeLessThanOrEqual(SONGS_PER_MILE);
   });
 });
 
 describe("times", () => {
-  it("builds the start instant in EST (daylight saving ends that morning)", () => {
-    expect(startInstant("09:10").toISOString()).toBe("2026-11-01T14:10:00.000Z");
+  it("closes adding at 6am race morning, EST (daylight saving ends that morning)", () => {
+    expect(ADDING_CLOSES_AT.toISOString()).toBe("2026-11-01T11:00:00.000Z");
   });
 
   it("formats clock times in New York", () => {
     expect(fmtTimeOfDay(new Date("2026-11-01T17:25:00Z"))).toBe("12:25 PM");
-  });
-
-  it("estimates when the runner reaches each moment", () => {
-    const offs = momentOffsets(4 * 3600);
-    expect(offs.start).toBe(0);
-    expect(offs.half).toBeGreaterThan(1.9 * 3600);
-    expect(offs.half).toBeLessThan(2.1 * 3600);
-    const etas = momentEtas(startInstant("09:10"), 4 * 3600);
-    expect(etas.start).toBe("9:10 AM");
-    expect(etas.finish).toMatch(/^1:0\d PM$/);
   });
 });

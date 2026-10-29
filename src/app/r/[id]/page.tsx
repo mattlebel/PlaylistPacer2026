@@ -8,9 +8,9 @@ import { registrySummary } from "@/lib/server/registryMeta";
 export async function generateMetadata({ params }: PageProps<"/r/[id]">): Promise<Metadata> {
   await connection(); // live progress, read per request
   const s = await registrySummary((await params).id);
-  if (!s) return { title: "Plant a song · Playlist Pacer" };
-  const title = `Help ${s.name} run the ${s.race}`;
-  const description = `Plant a song, with a short note, at a moment along ${s.name}'s course. ${s.planted} of ${s.total} moments planted so far.`;
+  if (!s) return { title: "Soundtrack a marathon · Playlist Pacer" };
+  const title = `Help ${s.name} soundtrack the ${s.race}`;
+  const description = `Drop a song on a mile of ${s.name}'s course and they'll hear it right there on race day. ${s.songs} ${s.songs === 1 ? "song" : "songs"} so far, ${s.milesOpen} of ${s.miles} miles with room.`;
   return { title, description, openGraph: { title, description, type: "website" }, twitter: { card: "summary_large_image", title, description } };
 }
 

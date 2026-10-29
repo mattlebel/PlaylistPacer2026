@@ -1,11 +1,11 @@
 "use client";
 
-import type { getManage, getOwnPlant, getRegistry } from "@/lib/server/repo";
+import type { getManage, getOwnSong, getRegistry } from "@/lib/server/repo";
 import type { Song } from "@/lib/types";
 
 export type Registry = Awaited<ReturnType<typeof getRegistry>>;
 export type Manage = Awaited<ReturnType<typeof getManage>>;
-export type OwnPlant = Awaited<ReturnType<typeof getOwnPlant>>;
+export type OwnSong = Awaited<ReturnType<typeof getOwnSong>>;
 
 export class ApiError extends Error {
   constructor(message: string, public code?: string, public status?: number) {

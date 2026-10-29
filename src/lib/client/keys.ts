@@ -32,6 +32,8 @@ function keyFor(store: string, id: string) {
 export const manageKeyFor = (raceId: string) => keyFor("pp.manage", raceId);
 export const editKeyFor = (plantId: string) => keyFor("pp.edit", plantId);
 export const rememberManageKey = (raceId: string, key: string) => write("pp.manage", { ...read("pp.manage"), [raceId]: key });
+/** Songs this device added, by id: lets you remove your own songs from the map. */
+export const editKeys = () => read("pp.edit");
 export const rememberEditKey = (plantId: string, key: string) => write("pp.edit", { ...read("pp.edit"), [plantId]: key });
 
 /** Races this device created, newest first (for the "your races" link on the home page). */

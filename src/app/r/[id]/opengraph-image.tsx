@@ -4,14 +4,14 @@ import { ImageResponse } from "next/og";
 import { connection } from "next/server";
 import { registrySummary } from "@/lib/server/registryMeta";
 
-export const alt = "Plant a song along their NYC Marathon";
+export const alt = "Drop a song on a mile of their NYC Marathon";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 const font = (w: number) =>
   readFile(join(process.cwd(), `node_modules/@fontsource/bricolage-grotesque/files/bricolage-grotesque-latin-${w}-normal.woff`));
 
-/** Link preview: "Help Matt run 26.2" on the cobalt sleeve, with planting progress. */
+/** Link preview: "Help Matt soundtrack 26.2" on the cobalt sleeve, with progress. */
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
   await connection();
   const s = await registrySummary((await params).id);
@@ -28,14 +28,14 @@ export default async function Image({ params }: { params: Promise<{ id: string }
             playlist pacer
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            <div style={{ fontSize: 108, fontWeight: 800, lineHeight: 0.95, letterSpacing: -3 }}>{`Help ${name} run 26.2`}</div>
-            <div style={{ fontSize: 38, fontWeight: 500, color: "#FBE6E9" }}>Plant a song along the NYC Marathon course.</div>
+            <div style={{ fontSize: 100, fontWeight: 800, lineHeight: 0.95, letterSpacing: -3 }}>{`Help ${name} soundtrack 26.2`}</div>
+            <div style={{ fontSize: 38, fontWeight: 500, color: "#FBE6E9" }}>Drop a song on a mile of the NYC Marathon.</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 20, fontSize: 28, fontWeight: 500 }}>
             <div style={{ display: "flex", width: 320, height: 14, borderRadius: 7, background: "rgba(14,14,20,0.3)" }}>
-              <div style={{ width: `${s ? (s.planted / s.total) * 100 : 0}%`, height: 14, borderRadius: 7, background: "#F7D3D8" }} />
+              <div style={{ width: `${s ? Math.min(100, (s.songs / s.capacity) * 100) : 0}%`, height: 14, borderRadius: 7, background: "#F7D3D8" }} />
             </div>
-            {s ? `${s.planted} of ${s.total} moments planted` : "Sunday, November 1"}
+            {s ? `${s.songs} ${s.songs === 1 ? "song" : "songs"} on the course` : "Sunday, November 1"}
           </div>
         </div>
       </div>

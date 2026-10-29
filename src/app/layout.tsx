@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   metadataBase: base ? new URL(base) : undefined,
   title: "Playlist Pacer — your marathon, soundtracked by your people",
   description:
-    "Share one link and let friends and family plant a song, with a short note, at a moment along your NYC Marathon course.",
+    "Share one link and let friends and family drag songs onto the miles of your NYC Marathon course. You hear them right there on race day.",
 };
 
 export const viewport: Viewport = {

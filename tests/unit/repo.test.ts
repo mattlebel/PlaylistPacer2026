@@ -1,21 +1,12 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { PGlite } from "@electric-sql/pglite";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { MOMENTS } from "@/lib/race";
+import { MILES, SONGS_PER_MILE } from "@/lib/race";
 import { createDb, type Db } from "@/lib/server/db";
-import {
-  AppError,
-  createRace,
-  deleteOwnPlant,
-  getManage,
-  getOwnPlant,
-  getRegistry,
-  MAX_PLANTS_PER_EMAIL,
-  plantSong,
-  raceTimes,
-  removePlantAsRunner,
-  revealRace,
-  songKey,
-  updateOwnPlant,
-} from "@/lib/server/repo";
+import { addSong, AppError, createRace, deleteOwnSong, getManage, getOwnSong, getRegistry, removeSongAsRunner, songKey } from "@/lib/server/repo";
+import { hashKey } from "@/lib/server/crypto";
 
 let db: Db;
 beforeAll(async () => {
@@ -34,27 +25,12 @@ const song = (title: string, artist = "Someone", id?: string) => ({
 });
 const sid = (c: string) => c.repeat(22);
 
-// Wave 1 at 9:10am EST; planting closes 7:10am, race-day tools open 4am.
 const BEFORE = new Date("2026-10-20T12:00:00-04:00");
-const RACE_MORNING = new Date("2026-11-01T06:00:00-05:00");
-const LOCKED = new Date("2026-11-01T07:30:00-05:00");
-const AFTER_GUN = new Date("2026-11-01T09:30:00-05:00");
-const AFTER_FINISH = new Date("2026-11-01T14:00:00-05:00");
+const JUST_BEFORE_CLOSE = new Date("2026-11-01T05:59:00-05:00");
+const CLOSED = new Date("2026-11-01T06:00:00-05:00");
 
-async function newRace(over: Record<string, unknown> = {}) {
-  return createRace(db, {
-    runnerName: "Matt Lebel",
-    runnerEmail: "Matt@Example.com",
-    goalSec: 4 * 3600,
-    startTime: "09:10",
-    songs: {
-      start: song("Empire State of Mind", "JAY-Z, Alicia Keys", sid("a")),
-      half: song("Titanium", "David Guetta, Sia", sid("b")),
-      finish: song("'Till I Collapse", "Eminem", sid("c")),
-    },
-    ...over,
-  });
-}
+const newRace = (over: Record<string, unknown> = {}) => createRace(db, { runnerName: "Matt Lebel", runnerEmail: "Matt@Example.com", ...over });
+const add = (raceId: string, mile: number, title: string, name?: string, now = BEFORE) => addSong(db, raceId, { mile, name, song: song(title) }, now);
 
 async function expectCode(p: Promise<unknown>, code: AppError["code"]) {
   await expect(p).rejects.toSatisfy((e) => e instanceof AppError && e.code === code);
@@ -73,211 +49,238 @@ describe("songKey", () => {
 });
 
 describe("createRace", () => {
-  it("creates a race with the runner's three songs and a secret manage key", async () => {
+  it("needs only a name, and keeps a hash of the private key, never the key", async () => {
     const r = await newRace();
     expect(r.id).toMatch(/^[a-z2-9]{10}$/);
     expect(r.manageKey.length).toBeGreaterThan(20);
-    const [row] = await db.query<{ manage_key_hash: string; runner_email: string; start_time: Date }>("select * from races");
-    expect(row.manage_key_hash).not.toContain(r.manageKey);
+    const [row] = await db.query<{ manage_key_hash: string; runner_email: string }>("select * from races");
+    expect(row.manage_key_hash).toBe(hashKey(r.manageKey));
     expect(row.runner_email).toBe("matt@example.com");
-    expect(new Date(row.start_time).toISOString()).toBe("2026-11-01T14:10:00.000Z");
-    const plants = await db.query<{ moment: string; is_runner: boolean }>("select moment, is_runner from plants order by moment");
-    expect(plants).toEqual([
-      { moment: "finish", is_runner: true },
-      { moment: "half", is_runner: true },
-      { moment: "start", is_runner: true },
-    ]);
+    await expect(createRace(db, { runnerName: "Dana" })).resolves.toBeTruthy();
   });
 
-  it("rejects repeated songs and bad input", async () => {
-    await expectCode(newRace({ songs: { start: song("A"), half: song("A"), finish: song("B") } }), "invalid");
-    await expectCode(newRace({ runnerName: "" }), "invalid");
-    await expectCode(newRace({ goalSec: 600 }), "invalid");
-    await expectCode(newRace({ startTime: "15:00" }), "invalid");
+  it("rejects a missing name or a bad email", async () => {
+    await expectCode(newRace({ runnerName: "  " }), "invalid");
     await expectCode(newRace({ runnerEmail: "nope" }), "invalid");
   });
 });
 
-describe("registry", () => {
-  it("lists every moment with ETAs, the runner's picks, and first names only", async () => {
+describe("the live map", () => {
+  it("lists every mile in order with its songs and first names only", async () => {
     const r = await newRace();
-    await plantSong(db, r.id, { moment: "bronx", name: "Sarah Connor", email: "s@x.com", message: "You got this", song: song("Juice", "Lizzo") }, BEFORE);
+    await add(r.id, 15, "Mr. Brightside", "Sarah Connor");
+    await add(r.id, 15, "Juice");
     const reg = await getRegistry(db, r.id, BEFORE);
     expect(reg.runnerName).toBe("Matt Lebel");
-    expect(reg.plantingOpen).toBe(true);
-    expect(reg.moments).toHaveLength(MOMENTS.length);
-    const bronx = reg.moments.find((m) => m.id === "bronx")!;
-    expect(bronx).toMatchObject({ status: "claimed", claimedBy: "Sarah" });
-    expect(bronx.song).toBeUndefined();
-    expect(JSON.stringify(reg)).not.toContain("You got this");
-    expect(JSON.stringify(reg)).not.toContain("s@x.com");
-    expect(reg.moments.find((m) => m.id === "start")).toMatchObject({ status: "runner", song: { title: "Empire State of Mind" } });
-    expect(reg.moments.find((m) => m.id === "5k")!.status).toBe("open");
-    // ETAs increase along the course and the finish lands near the goal.
-    const etas = reg.moments.map((m) => new Date(m.eta).getTime());
-    expect([...etas].sort((a, b) => a - b)).toEqual(etas);
-    const finishMins = (etas.at(-1)! - etas[0]) / 60000;
-    expect(finishMins).toBeGreaterThan(230);
-    expect(finishMins).toBeLessThan(240);
+    expect(reg.open).toBe(true);
+    expect(reg.perMile).toBe(SONGS_PER_MILE);
+    expect(reg.total).toBe(2);
+    expect(reg.miles.map((m) => m.n)).toEqual(MILES.map((m) => m.n));
+    const q = reg.miles.find((m) => m.n === 15)!;
+    expect(q.songs.map((s) => [s.song.title, s.from])).toEqual([
+      ["Mr. Brightside", "Sarah"],
+      ["Juice", undefined],
+    ]);
+    expect(JSON.stringify(reg)).not.toContain("Connor");
+    expect(JSON.stringify(reg)).not.toContain("edit_key");
   });
 
   it("404s for unknown links", async () => {
-    await expectCode(getRegistry(db, "nope"), "not_found");
+    await expectCode(getRegistry(db, "nope", BEFORE), "not_found");
   });
 });
 
-describe("plantSong", () => {
-  it("claims a moment and returns an edit key", async () => {
+describe("addSong", () => {
+  it("adds a song to a mile and returns a key for removing it later", async () => {
     const r = await newRace();
-    const p = await plantSong(db, r.id, { moment: "queensboro", name: "Ana", email: "ANA@x.com", song: song("Mr. Brightside", "The Killers", sid("d")) }, BEFORE);
-    expect(p.editKey.length).toBeGreaterThan(20);
-    expect(p.runnerName).toBe("Matt Lebel");
-    const [row] = await db.query<{ email: string; uri: string; message: string | null }>("select * from plants where id = $1", [p.id]);
-    expect(row).toMatchObject({ email: "ana@x.com", uri: `spotify:track:${sid("d")}`, message: null });
+    const res = await addSong(db, r.id, { mile: 0, song: song("Empire State of Mind", "JAY-Z", sid("a")) }, BEFORE);
+    expect(res.mile).toBe(0);
+    expect(res.editKey.length).toBeGreaterThan(20);
+    const [row] = await db.query<{ uri: string; slot: number; name: string | null }>("select * from plants");
+    expect(row).toMatchObject({ uri: `spotify:track:${sid("a")}`, slot: 0, name: null });
   });
 
-  it("allows one song per moment", async () => {
+  it(`fits ${SONGS_PER_MILE} songs on a mile, then says it's full`, async () => {
     const r = await newRace();
-    await plantSong(db, r.id, { moment: "bronx", name: "A", email: "a@x.com", song: song("Juice", "Lizzo") }, BEFORE);
-    await expectCode(plantSong(db, r.id, { moment: "bronx", name: "B", email: "b@x.com", song: song("Toxic", "Britney Spears") }, BEFORE), "moment_taken");
+    for (let i = 0; i < SONGS_PER_MILE; i++) await add(r.id, 20, `Song ${i}`);
+    await expectCode(add(r.id, 20, "One too many"), "mile_full");
+    await expect(add(r.id, 21, "One too many")).resolves.toBeTruthy();
   });
 
-  it("handles two friends grabbing the same moment at the same time", async () => {
+  it("never overfills a mile when everyone drops at once", async () => {
     const r = await newRace();
-    const results = await Promise.allSettled([
-      plantSong(db, r.id, { moment: "40k", name: "A", email: "a@x.com", song: song("Juice", "Lizzo") }, BEFORE),
-      plantSong(db, r.id, { moment: "40k", name: "B", email: "b@x.com", song: song("Toxic", "Britney Spears") }, BEFORE),
-    ]);
-    expect(results.filter((x) => x.status === "fulfilled")).toHaveLength(1);
-    const rejected = results.find((x) => x.status === "rejected") as PromiseRejectedResult;
-    expect((rejected.reason as AppError).code).toBe("moment_taken");
+    const results = await Promise.allSettled(Array.from({ length: 8 }, (_, i) => add(r.id, 16, `Rush ${i}`)));
+    expect(results.filter((x) => x.status === "fulfilled")).toHaveLength(SONGS_PER_MILE);
+    const rows = await db.query<{ slot: number }>("select slot from plants where mile = 16 order by slot");
+    expect(rows.map((x) => x.slot)).toEqual([0, 1, 2, 3]);
   });
 
-  it("blocks duplicate songs, including the runner's own picks and other versions", async () => {
+  it("reuses a freed spot", async () => {
     const r = await newRace();
-    await expectCode(plantSong(db, r.id, { moment: "5k", name: "A", email: "a@x.com", song: song("Titanium (feat. Sia)", "David Guetta") }, BEFORE), "song_taken");
-    await plantSong(db, r.id, { moment: "5k", name: "A", email: "a@x.com", song: song("Mr. Brightside", "The Killers") }, BEFORE);
-    await expectCode(plantSong(db, r.id, { moment: "10k", name: "B", email: "b@x.com", song: song("Mr. Brightside - Remastered", "The Killers") }, BEFORE), "song_taken");
+    const ids = [];
+    for (let i = 0; i < SONGS_PER_MILE; i++) ids.push(await add(r.id, 8, `Song ${i}`));
+    await deleteOwnSong(db, ids[1].id, ids[1].editKey, BEFORE);
+    await expect(add(r.id, 8, "Back in")).resolves.toBeTruthy();
   });
 
-  it("refuses runner moments, unknown moments, long notes and missing emails", async () => {
+  it("blocks the same song anywhere on the course, including other versions", async () => {
     const r = await newRace();
-    await expectCode(plantSong(db, r.id, { moment: "half", name: "A", email: "a@x.com", song: song("X") }, BEFORE), "invalid");
-    await expectCode(plantSong(db, r.id, { moment: "mile-27", name: "A", email: "a@x.com", song: song("X") }, BEFORE), "invalid");
-    await expectCode(plantSong(db, r.id, { moment: "5k", name: "A", email: "a@x.com", message: "x".repeat(151), song: song("X") }, BEFORE), "invalid");
-    await expectCode(plantSong(db, r.id, { moment: "5k", name: "A", song: song("X") }, BEFORE), "invalid");
+    await add(r.id, 15, "Mr. Brightside");
+    await expectCode(add(r.id, 3, "Mr. Brightside - Remastered"), "song_taken");
   });
 
-  it(`caps each email at ${MAX_PLANTS_PER_EMAIL} songs`, async () => {
+  it("refuses miles that don't exist and bad songs", async () => {
     const r = await newRace();
-    const base = { name: "Superfan", email: "fan@x.com" };
-    await plantSong(db, r.id, { ...base, moment: "5k", song: song("One") }, BEFORE);
-    await plantSong(db, r.id, { ...base, moment: "10k", song: song("Two") }, BEFORE);
-    await expectCode(plantSong(db, r.id, { ...base, email: "FAN@x.com", moment: "bronx", song: song("Three") }, BEFORE), "limit");
+    await expectCode(add(r.id, 27, "Too far"), "invalid");
+    await expectCode(add(r.id, -1, "Too early"), "invalid");
+    await expectCode(addSong(db, r.id, { mile: 1.5, song: song("Half") }, BEFORE), "invalid");
+    await expectCode(addSong(db, r.id, { mile: 1, song: { title: "", artist: "x" } }, BEFORE), "invalid");
+    await expectCode(addSong(db, r.id, { mile: 1, song: { ...song("x"), uri: "https://evil" } }, BEFORE), "invalid");
   });
 
-  it("closes two hours before the runner's wave", async () => {
+  it("closes at 6am race morning", async () => {
     const r = await newRace();
-    const closes = new Date("2026-11-01T07:10:00-05:00");
-    await plantSong(db, r.id, { moment: "5k", name: "A", email: "a@x.com", song: song("One") }, new Date(closes.getTime() - 1000));
-    await expectCode(plantSong(db, r.id, { moment: "10k", name: "B", email: "b@x.com", song: song("Two") }, closes), "closed");
-    expect((await getRegistry(db, r.id, closes)).plantingOpen).toBe(false);
+    await expect(add(r.id, 1, "Just in time", undefined, JUST_BEFORE_CLOSE)).resolves.toBeTruthy();
+    await expectCode(add(r.id, 2, "Too late", undefined, CLOSED), "closed");
+    expect((await getRegistry(db, r.id, CLOSED)).open).toBe(false);
   });
 });
 
-describe("editing your own plant", () => {
-  it("reads, updates and deletes with the edit key only", async () => {
+describe("removing your own song", () => {
+  it("reads and deletes with the key only", async () => {
     const r = await newRace();
-    const p = await plantSong(db, r.id, { moment: "bronx", name: "Ana", email: "a@x.com", message: "Go!", song: song("Juice", "Lizzo") }, BEFORE);
-    await expectCode(getOwnPlant(db, p.id, "wrong", BEFORE), "forbidden");
-    expect(await getOwnPlant(db, p.id, p.editKey, BEFORE)).toMatchObject({ moment: "bronx", message: "Go!", song: { title: "Juice" }, editable: true });
-
-    await updateOwnPlant(db, p.id, p.editKey, { message: "Bronx is yours", song: song("Toxic", "Britney Spears") }, BEFORE);
-    expect(await getOwnPlant(db, p.id, p.editKey, BEFORE)).toMatchObject({ message: "Bronx is yours", song: { title: "Toxic" } });
-    await expectCode(updateOwnPlant(db, p.id, p.editKey, { song: song("Titanium", "David Guetta") }, BEFORE), "song_taken");
-
-    await deleteOwnPlant(db, p.id, p.editKey, BEFORE);
-    expect((await getRegistry(db, r.id, BEFORE)).moments.find((m) => m.id === "bronx")!.status).toBe("open");
+    const s = await add(r.id, 9, "Juice", "Sarah");
+    await expectCode(getOwnSong(db, s.id, "wrong", BEFORE), "forbidden");
+    expect(await getOwnSong(db, s.id, s.editKey, BEFORE)).toMatchObject({ mile: 9, song: { title: "Juice" }, removable: true });
+    await expectCode(deleteOwnSong(db, s.id, null, BEFORE), "forbidden");
+    await deleteOwnSong(db, s.id, s.editKey, BEFORE);
+    expect((await getRegistry(db, r.id, BEFORE)).total).toBe(0);
   });
 
-  it("locks once planting closes", async () => {
+  it("locks once adding closes", async () => {
     const r = await newRace();
-    const p = await plantSong(db, r.id, { moment: "bronx", name: "Ana", email: "a@x.com", song: song("Juice", "Lizzo") }, BEFORE);
-    expect((await getOwnPlant(db, p.id, p.editKey, RACE_MORNING)).editable).toBe(true);
-    expect((await getOwnPlant(db, p.id, p.editKey, LOCKED)).editable).toBe(false);
-    await expectCode(updateOwnPlant(db, p.id, p.editKey, { message: "late" }, LOCKED), "closed");
-    await expectCode(deleteOwnPlant(db, p.id, p.editKey, LOCKED), "closed");
-  });
-
-  it("can't touch the runner's picks", async () => {
-    const r = await newRace();
-    const [runner] = await db.query<{ id: string }>("select id from plants where race_id = $1 and is_runner", [r.id]);
-    await expectCode(getOwnPlant(db, runner.id, r.manageKey, BEFORE), "forbidden");
+    const s = await add(r.id, 9, "Juice");
+    expect((await getOwnSong(db, s.id, s.editKey, CLOSED)).removable).toBe(false);
+    await expectCode(deleteOwnSong(db, s.id, s.editKey, CLOSED), "closed");
   });
 });
 
 describe("runner view", () => {
-  async function planted() {
+  it("needs the private key", async () => {
     const r = await newRace();
-    const p = await plantSong(db, r.id, { moment: "bronx", name: "Sarah Connor", email: "s@x.com", message: "Bronx is yours", song: song("Juice", "Lizzo", sid("e")) }, BEFORE);
-    return { r, p };
-  }
-
-  it("needs the manage key", async () => {
-    const { r } = await planted();
     await expectCode(getManage(db, r.id, null, BEFORE), "forbidden");
-    await expectCode(getManage(db, r.id, "guess", BEFORE), "forbidden");
+    await expectCode(getManage(db, r.id, "wrong", BEFORE), "forbidden");
   });
 
-  it("keeps friends' songs and notes sealed before race day", async () => {
-    const { r } = await planted();
+  it("shows full names and totals", async () => {
+    const r = await newRace();
+    await add(r.id, 15, "Mr. Brightside", "Sarah Connor");
+    await add(r.id, 15, "Juice", "Dana");
+    await add(r.id, 20, "Toxic");
     const m = await getManage(db, r.id, r.manageKey, BEFORE);
-    expect(m).toMatchObject({ planted: 1, friendMoments: 13, revealed: false, raceDay: false, canReveal: false });
-    const bronx = m.moments.find((x) => x.id === "bronx")!;
-    expect(bronx.from).toBe("Sarah Connor");
-    expect(bronx.song).toBeUndefined();
-    expect(bronx.message).toBeUndefined();
-    expect(bronx.playUri).toBeUndefined();
-    expect(JSON.stringify(m)).not.toContain("Juice");
-    expect(m.moments.find((x) => x.id === "start")!.song!.title).toBe("Empire State of Mind");
+    expect(m.total).toBe(3);
+    expect(m.milesWithSongs).toBe(2);
+    expect(m.miles.find((x) => x.n === 15)!.songs[0].from).toBe("Sarah Connor");
   });
 
-  it("unlocks play links (but not titles) on race morning", async () => {
-    const { r } = await planted();
-    const m = await getManage(db, r.id, r.manageKey, RACE_MORNING);
-    expect(m.raceDay).toBe(true);
-    const bronx = m.moments.find((x) => x.id === "bronx")!;
-    expect(bronx.playUri).toBe(`spotify:track:${sid("e")}`);
-    expect(bronx.song).toBeUndefined();
-  });
-
-  it("reveals only after the gun, then shows everything", async () => {
-    const { r } = await planted();
-    await expectCode(revealRace(db, r.id, r.manageKey, RACE_MORNING), "not_yet");
-    await revealRace(db, r.id, r.manageKey, AFTER_GUN);
-    const m = await getManage(db, r.id, r.manageKey, AFTER_GUN);
-    expect(m.revealed).toBe(true);
-    expect(m.moments.find((x) => x.id === "bronx")).toMatchObject({ song: { title: "Juice" }, message: "Bronx is yours" });
-  });
-
-  it("reveals on its own 30 minutes after the goal time", async () => {
-    const { r } = await planted();
-    expect((await getManage(db, r.id, r.manageKey, AFTER_FINISH)).revealed).toBe(true);
-  });
-
-  it("lets the runner remove a plant", async () => {
-    const { r, p } = await planted();
-    await expectCode(removePlantAsRunner(db, r.id, "guess", p.id), "forbidden");
-    await removePlantAsRunner(db, r.id, r.manageKey, p.id);
-    expect((await getManage(db, r.id, r.manageKey, BEFORE)).planted).toBe(0);
+  it("can remove any song", async () => {
+    const r = await newRace();
+    const s = await add(r.id, 15, "Mr. Brightside");
+    await expectCode(removeSongAsRunner(db, r.id, "wrong", s.id), "forbidden");
+    await removeSongAsRunner(db, r.id, r.manageKey, s.id);
+    expect((await getManage(db, r.id, r.manageKey, BEFORE)).total).toBe(0);
   });
 });
 
-describe("raceTimes", () => {
-  it("derives the time windows from the start and goal", () => {
-    const t = raceTimes({ start_time: "2026-11-01T14:10:00Z", goal_sec: 4 * 3600 });
-    expect(t.plantingClosesAt.toISOString()).toBe("2026-11-01T12:10:00.000Z");
-    expect(t.raceDayOpensAt.toISOString()).toBe("2026-11-01T09:00:00.000Z");
-    expect(t.autoRevealAt.toISOString()).toBe("2026-11-01T18:40:00.000Z");
+/** The first version's schema, to check that a live database upgrades in place. */
+const OLD_SCHEMA = `
+create table if not exists races (
+  id text primary key,
+  manage_key_hash text not null,
+  runner_name text not null,
+  runner_email text,
+  race text not null,
+  goal_sec integer not null check (goal_sec between 7200 and 28800),
+  start_time timestamptz not null,
+  revealed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists plants (
+  id text primary key,
+  race_id text not null references races(id) on delete cascade,
+  moment text not null,
+  is_runner boolean not null default false,
+  name text not null,
+  email text,
+  edit_key_hash text,
+  song_key text not null,
+  spotify_id text,
+  uri text,
+  title text not null,
+  artist text not null,
+  art text,
+  duration_sec integer,
+  message text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint plants_moment_unique unique (race_id, moment),
+  constraint plants_song_unique unique (race_id, song_key)
+);
+
+create index if not exists plants_race_idx on plants (race_id);
+`;
+
+describe("upgrading a first-version database", () => {
+  it("moves each planted moment onto its mile and keeps every song, name and note", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "pp-upgrade-"));
+    try {
+      const old = new PGlite(dir);
+      for (const stmt of OLD_SCHEMA.split(";").map((s) => s.trim()).filter(Boolean)) await old.query(stmt);
+      await old.query(
+        `insert into races (id, manage_key_hash, runner_name, race, goal_sec, start_time) values ('oldrace', $1, 'Matt Lebel', 'nyc-2026', 14400, '2026-11-01T14:10:00Z')`,
+        [hashKey("k")],
+      );
+      const rows: [string, string, boolean, string | null, string | null][] = [
+        ["start", "Empire State of Mind", true, "Matt Lebel", null],
+        ["queensboro", "Mr. Brightside", false, "Sarah Connor", "The bridge is yours"],
+        ["central-park", "Juice", false, "Dana", null],
+        ["40k", "Toxic", false, "Eve", null],
+        ["finish", "Till I Collapse", true, "Matt Lebel", null],
+      ];
+      for (const [i, [moment, title, isRunner, name, message]] of rows.entries()) {
+        await old.query(
+          `insert into plants (id, race_id, moment, is_runner, name, email, song_key, title, artist, message, created_at)
+           values ($1, 'oldrace', $2, $3, $4, 'x@y.com', $5, $6, 'Someone', $7, now() + ($8 || ' seconds')::interval)`,
+          [`p${i}`, moment, isRunner, name, songKey(song(title)), title, message, String(i)],
+        );
+      }
+      await old.close();
+
+      let upgraded = await createDb({ dataDir: dir });
+      try {
+        const m = await getManage(upgraded, "oldrace", "k", BEFORE);
+        const at = (n: number) => m.miles.find((x) => x.n === n)!.songs.map((s) => s.song.title);
+        expect(m.total).toBe(5);
+        expect(at(0)).toEqual(["Empire State of Mind"]);
+        expect(at(15)).toEqual(["Mr. Brightside"]);
+        expect(at(24)).toEqual(["Juice", "Toxic"]);
+        expect(at(25)).toEqual(["Till I Collapse"]);
+        const q = m.miles.find((x) => x.n === 15)!.songs[0];
+        expect(q).toMatchObject({ from: "Sarah Connor", message: "The bridge is yours", isRunner: false });
+
+        // And it keeps working: new songs land in the next free spot, and running the upgrade again (every restart) changes nothing.
+        await addSong(upgraded, "oldrace", { mile: 24, song: song("New one") }, BEFORE);
+        await upgraded.close();
+        upgraded = await createDb({ dataDir: dir });
+        const reg = await getRegistry(upgraded, "oldrace", BEFORE);
+        expect(reg.total).toBe(6);
+        expect(reg.miles.find((x) => x.n === 24)!.songs.map((s) => s.song.title)).toEqual(["Juice", "Toxic", "New one"]);
+      } finally {
+        await upgraded.close();
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

@@ -19,10 +19,10 @@ export async function POST(req: NextRequest) {
           text: [
             `Hi ${race.runnerName},`,
             "",
-            `Share this link with friends and family so they can plant a song along your race:`,
+            `Share this link with friends and family. They'll see a map of the course and drop songs onto the miles:`,
             shareUrl,
             "",
-            `Keep this one private. It's how you manage your race and, after the finish, read every note:`,
+            `Keep this one private. It's where you see every song, remove any you don't want, and save your race-day playlist:`,
             manageUrl,
             "",
             "Run happy,",
