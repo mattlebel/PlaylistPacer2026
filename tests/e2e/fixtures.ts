@@ -1,4 +1,4 @@
-import { expect, test as base, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test as base, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { CLOCK_FILE } from "./clock-path";
@@ -15,11 +15,38 @@ export function setClock(iso: string) {
   writeFileSync(CLOCK_FILE, iso);
 }
 
+/** Songs the stand-in Spotify search knows about (tests run without real Spotify keys). */
+const CATALOG: [string, string][] = [
+  ["Mr. Brightside", "The Killers"],
+  ["Mr. Brightside - Remastered", "The Killers"],
+  ["Juice", "Lizzo"],
+  ["Can't Hold Us", "Macklemore"],
+  ["Toxic", "Britney Spears"],
+  ["Dog Days Are Over", "Florence + The Machine"],
+  ["Eye of the Tiger", "Survivor"],
+  ["Sprawl II (Mountains Beyond Mountains)", "Arcade Fire"],
+];
+const fakeId = (s: string) => (s.replace(/[^A-Za-z0-9]/g, "") + "x".repeat(22)).slice(0, 22);
+
+/** Answers the app's song search the way Spotify would, so the browser sees "Search by Spotify" results. */
+export async function fakeSpotifySearch(page: Page) {
+  await page.route("**/api/songs/search**", (route) => {
+    const q = new URL(route.request().url()).searchParams.get("q")?.trim().toLowerCase() ?? "";
+    const hits = q ? CATALOG.filter(([t, a]) => `${t} ${a}`.toLowerCase().includes(q)) : [];
+    const results = (hits.length || !q ? hits : [[q.replace(/\b\w/g, (c) => c.toUpperCase()), "Someone"] as [string, string]]).map(([title, artist]) => {
+      const id = fakeId(title);
+      return { title, artist, spotifyId: id, uri: `spotify:track:${id}` };
+    });
+    return route.fulfill({ json: { configured: true, results } });
+  });
+}
+
 /** Fails the test on any page error or console error (map tiles excepted). */
 export const test = base.extend<{ errors: string[] }>({
   errors: [
     async ({ page }, use) => {
       setClock(TIMES.weeksBefore);
+      await fakeSpotifySearch(page);
       const errors: string[] = [];
       page.on("pageerror", (e) => errors.push(e.message));
       page.on("console", (m) => {
@@ -56,10 +83,17 @@ export async function addViaApi(request: APIRequestContext, raceId: string, body
   return (await res.json()) as { id: string; editKey: string };
 }
 
-/** Types a song into the search box as "Song by Artist" and picks it (Spotify search isn't configured in tests). */
-export async function typeSong(scope: Page | ReturnType<Page["locator"]>, title: string, artist: string) {
-  await scope.getByRole("combobox", { name: "Search for a song" }).first().fill(`${title} by ${artist}`);
-  await scope.getByRole("option").filter({ hasText: `Add “${title}”` }).first().click();
+/** Searches for a song and picks the result with exactly this title and artist. */
+export async function typeSong(scope: Page | Locator, title: string, artist: string) {
+  const page = "page" in scope && typeof scope.page === "function" ? scope.page() : (scope as Page);
+  await scope.getByRole("combobox", { name: "Search for a song" }).first().fill(title);
+  await scope
+    .getByRole("listbox", { name: "Search results" })
+    .getByRole("option")
+    .filter({ has: page.getByText(title, { exact: true }) })
+    .filter({ has: page.getByText(artist, { exact: true }) })
+    .first()
+    .click();
 }
 
 /** Answers the welcome popup: your name, then "Let's go". */
@@ -84,6 +118,16 @@ export async function dragSongTo(page: Page, mile: number) {
   const chip = page.getByRole("button", { name: /^Drag / });
   const target = marker(page, mile);
   await expect(target).toBeVisible();
+  // Picking a song on a phone smooth-scrolls to the map; aim once the page has stopped moving.
+  let last = -1;
+  await expect
+    .poll(async () => {
+      const y = await page.evaluate(() => window.scrollY);
+      const settled = y === last;
+      last = y;
+      return settled;
+    }, { intervals: [150] })
+    .toBe(true);
   const a = (await chip.boundingBox())!;
   const b = (await target.boundingBox())!;
   const from = { x: a.x + 24, y: a.y + a.height / 2 };

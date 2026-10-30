@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { searchSongs } from "@/lib/client/api";
-import { parseTypedSong, suggestSongs } from "@/lib/popularSongs";
+import { suggestSongs } from "@/lib/popularSongs";
 import { spotifyTrackUrl } from "@/lib/spotify";
 import type { Song } from "@/lib/types";
 import { SpotifyIcon } from "./brand";
@@ -15,9 +15,8 @@ const searchAvailable = () =>
     .catch(() => true));
 
 /**
- * One box for finding a song. Suggestions come from Spotify when it's set up, or from a built-in
- * list of popular running songs when it isn't. Anything else can be typed as "Song – Artist".
- * Picking hands the song back and clears the box.
+ * One box for finding a song. Results come from Spotify when it's set up, or from a built-in list
+ * of popular running songs when it isn't. Picking hands the song back and clears the box.
  */
 export function SongSearch({ onPick, inputId }: { onPick(song: Song): void; inputId?: string }) {
   const autoId = useId();
@@ -25,7 +24,8 @@ export function SongSearch({ onPick, inputId }: { onPick(song: Song): void; inpu
   const listId = `${id}-list`;
   const [q, setQ] = useState("");
   const [remote, setRemote] = useState<Song[]>([]);
-  const [configured, setConfigured] = useState(false);
+  // Unknown until the server answers, so the box doesn't flash built-in suggestions before Spotify's.
+  const [configured, setConfigured] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [active, setActive] = useState(0);
@@ -52,7 +52,7 @@ export function SongSearch({ onPick, inputId }: { onPick(song: Song): void; inpu
         setRemote(r.results);
         setErr(r.error ?? null);
       } catch {
-        if (n === seq.current) setErr("Search isn't working right now. Type it as Song – Artist instead.");
+        if (n === seq.current) setErr("Search isn't working right now. Try again in a moment.");
       } finally {
         if (n === seq.current) setBusy(false);
       }
@@ -61,9 +61,7 @@ export function SongSearch({ onPick, inputId }: { onPick(song: Song): void; inpu
   }, [q, configured]);
 
   const typing = q.trim().length >= 2;
-  const results = useMemo(() => (!typing ? [] : configured ? remote : suggestSongs(q)), [typing, configured, remote, q]);
-  const typed = typing ? parseTypedSong(q) : null;
-  const options: { song: Song; typed?: boolean }[] = [...results.map((song) => ({ song })), ...(typed ? [{ song: typed, typed: true }] : [])];
+  const options = useMemo(() => (!typing ? [] : configured ? remote : configured === false ? suggestSongs(q) : []), [typing, configured, remote, q]);
   const current = Math.min(active, Math.max(0, options.length - 1));
 
   const pick = (s: Song) => {
@@ -75,9 +73,7 @@ export function SongSearch({ onPick, inputId }: { onPick(song: Song): void; inpu
     onPick(s);
   };
 
-  const status = busy
-    ? "Searching…"
-    : (err ?? (typing && !results.length ? (typed ? "Not in the list. Add it as you typed it:" : "No matches. Type it as Song – Artist to add it anyway.") : ""));
+  const status = busy ? "Searching…" : (err ?? (typing && !options.length && configured !== null ? "No matches. Try different words." : ""));
 
   return (
     <div>
@@ -107,12 +103,12 @@ export function SongSearch({ onPick, inputId }: { onPick(song: Song): void; inpu
             setActive((current - 1 + options.length) % options.length);
           } else if (e.key === "Enter") {
             e.preventDefault();
-            pick(options[current].song);
+            pick(options[current]);
           }
         }}
       />
       <div className="mt-2 flex items-center justify-between gap-3 text-xs text-pink/60">
-        <span>{status || (typing ? "" : "Pick from the list, or type it as Song – Artist.")}</span>
+        <span>{status}</span>
         {configured && (
           <span className="inline-flex shrink-0 items-center gap-1.5">
             <SpotifyIcon size={14} /> Search by Spotify
@@ -121,8 +117,8 @@ export function SongSearch({ onPick, inputId }: { onPick(song: Song): void; inpu
       </div>
       {options.length > 0 && (
         <ul id={listId} className="mt-2 max-h-72 space-y-1 overflow-y-auto pr-1" role="listbox" aria-label="Search results">
-          {options.map(({ song: s, typed: isTyped }, i) => (
-            <li key={`${isTyped ? "typed" : (s.spotifyId ?? s.title)}-${s.artist}`} className={`flex items-center gap-3 rounded-xl px-2 py-1.5 ${i === current ? "bg-ink/35" : "hover:bg-ink/25"}`}>
+          {options.map((s, i) => (
+            <li key={`${s.spotifyId ?? s.title}-${s.artist}`} className={`flex items-center gap-3 rounded-xl px-2 py-1.5 ${i === current ? "bg-ink/35" : "hover:bg-ink/25"}`}>
               <button
                 type="button"
                 id={`${listId}-${i}`}
@@ -136,14 +132,14 @@ export function SongSearch({ onPick, inputId }: { onPick(song: Song): void; inpu
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={s.art} alt="" className="h-10 w-10 shrink-0 rounded-[4px] object-cover" />
                 ) : (
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[4px] bg-ink-3">{isTyped ? "+" : "♪"}</span>
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[4px] bg-ink-3">♪</span>
                 )}
                 <span className="min-w-0">
                   <span className="block truncate font-semibold" title={s.title}>
-                    {isTyped ? `Add “${s.title}”` : s.title}
+                    {s.title}
                   </span>
                   <span className="block truncate text-sm text-pink/70" title={s.artist}>
-                    {isTyped ? `by ${s.artist}` : s.artist}
+                    {s.artist}
                   </span>
                 </span>
               </button>

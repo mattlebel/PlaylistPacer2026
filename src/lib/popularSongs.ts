@@ -424,16 +424,3 @@ export function suggestSongs(query: string, limit = 8): Song[] {
     .slice(0, limit)
     .map((x) => x.s);
 }
-
-/** "Juice - Lizzo", "Juice – Lizzo" or "Juice by Lizzo" → a song. Null if there's no artist. */
-export function parseTypedSong(text: string): Song | null {
-  const t = text.trim().replace(/\s+/g, " ");
-  // Split at whichever separator comes last, so titles can contain one too:
-  // "Stand By Me by Ben E. King", "Mr. Brightside - Remastered by The Killers".
-  const seps = [...t.matchAll(/ (?:[-–—]|by) /gi)];
-  const last = seps.at(-1);
-  if (!last || last.index === 0) return null;
-  const [title, artist] = [t.slice(0, last.index).trim(), t.slice(last.index + last[0].length).trim()];
-  if (!title || !artist) return null;
-  return { title: title.slice(0, 200), artist: artist.slice(0, 200) };
-}

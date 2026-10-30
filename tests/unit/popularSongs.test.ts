@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseTypedSong, POPULAR_SONGS, suggestSongs } from "@/lib/popularSongs";
+import { POPULAR_SONGS, suggestSongs } from "@/lib/popularSongs";
 import { songKey } from "@/lib/server/repo";
 
 describe("built-in song list", () => {
@@ -26,21 +26,5 @@ describe("built-in song list", () => {
     expect(suggestSongs("the")).toHaveLength(8);
     expect(suggestSongs("a")).toEqual([]);
     expect(suggestSongs("zzzz qqqq")).toEqual([]);
-  });
-});
-
-describe("typing a song that isn't on the list", () => {
-  it("reads 'Song – Artist' and 'Song by Artist'", () => {
-    expect(parseTypedSong("Juice - Lizzo")).toEqual({ title: "Juice", artist: "Lizzo" });
-    expect(parseTypedSong("Juice – Lizzo")).toEqual({ title: "Juice", artist: "Lizzo" });
-    expect(parseTypedSong("  Born to Run   by  Bruce Springsteen ")).toEqual({ title: "Born to Run", artist: "Bruce Springsteen" });
-    expect(parseTypedSong("Stand By Me by Ben E. King")).toEqual({ title: "Stand By Me", artist: "Ben E. King" });
-    expect(parseTypedSong("Stand By Me - Ben E. King")).toEqual({ title: "Stand By Me", artist: "Ben E. King" });
-    expect(parseTypedSong("Mr. Brightside - Remastered by The Killers")).toEqual({ title: "Mr. Brightside - Remastered", artist: "The Killers" });
-  });
-
-  it("needs an artist", () => {
-    expect(parseTypedSong("Juice")).toBeNull();
-    expect(parseTypedSong("Juice -")).toBeNull();
   });
 });

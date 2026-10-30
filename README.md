@@ -16,13 +16,13 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
     showing how full that mile is, and the big landmarks get a star.
   - Type in one search box and pick a suggestion, and it becomes a bubble you drag onto a marker.
     Suggestions come from Spotify when it's set up (searches are cached on the server for a few hours),
-    or otherwise from a built-in list of about 375 popular running songs (`src/lib/popularSongs.ts`).
-    Anything else can be typed as "Song – Artist" or "Song by Artist". Pause while
+    or otherwise from a built-in list of about 375 popular running songs (`src/lib/popularSongs.ts`). Pause while
     dragging and the map zooms in toward the bubble (up to two steps) so crowded miles spread out.
     Push against an edge to pan. After the drop it zooms back out to the whole course.
   - You can also pick a mile from a dropdown, or tap a mile and add a song from its popup. Both work
     without dragging.
-  - The welcome popup asks for your first name; it shows on your songs as "from Sarah".
+  - The welcome popup asks for your first name once; it shows on your songs as "from Sarah". To
+    change it, reopen "How it works".
   - You can remove your own song from the same device.
 - **Live:** the map refreshes every few seconds, so everyone sees what's been picked and which miles
   still have room.
@@ -34,7 +34,7 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
 - **Runner's private page:**
   - See every song with full names, and remove any of them.
   - Save all the songs to Spotify as one playlist, in course order. Songs picked from the built-in
-    list or typed in are matched on Spotify by title and artist; any it can't find are listed.
+    list are matched on Spotify by title and artist; any it can't find are listed.
 
 Songs from the first version of the app (one song per named "moment") are moved onto the matching
 mile automatically when the server starts. `tests/unit/repo.test.ts` covers that upgrade.

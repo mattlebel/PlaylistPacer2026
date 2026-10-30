@@ -228,20 +228,6 @@ export function Registry() {
                 <h2 className="font-display text-2xl font-bold">Add a song</h2>
                 <p className="mt-1 text-sm text-blush">Pick one, then drag it onto the map.</p>
               </div>
-              <div>
-                <label htmlFor="your-name" className="label mb-2 block">
-                  Your name
-                </label>
-                <input
-                  id="your-name"
-                  className="field"
-                  value={name}
-                  maxLength={40}
-                  autoComplete="given-name"
-                  placeholder={`So ${runner} knows who picked it`}
-                  onChange={(e) => saveName(e.target.value)}
-                />
-              </div>
               <SongSearch onPick={pickSong} inputId={SEARCH_ID} />
               {held && (
                 <HeldSong

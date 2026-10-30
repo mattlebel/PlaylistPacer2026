@@ -11,7 +11,8 @@ test("a friend drags a song onto a mile", async ({ page, request }) => {
   await intro.getByLabel("First, what's your name?").fill("Dana Scully");
   await intro.getByRole("button", { name: "Let's go" }).click();
   await expect(marker(page, 15)).toHaveAccessibleName("Mile 15, Queensboro Bridge: 0 of 3 songs");
-  await expect(page.getByLabel("Your name", { exact: true })).toHaveValue("Dana Scully");
+  // The name is asked once, in the welcome popup, not again in the song panel.
+  await expect(page.getByLabel("Your name", { exact: true })).toHaveCount(0);
 
   await typeSong(page, "Mr. Brightside", "The Killers");
   await expect(page.getByRole("button", { name: "Drag Mr. Brightside onto a mile" })).toBeVisible();
@@ -43,25 +44,39 @@ test("a friend drags a song onto a mile", async ({ page, request }) => {
   await expect(page.getByRole("dialog", { name: "How it works" })).toHaveCount(0);
 });
 
-test("one search box suggests songs as you type", async ({ page, request }) => {
+test("one search box: Spotify results as you type", async ({ page, request }) => {
   const race = await createRace(request);
   await openMap(page, race.id);
   const box = page.getByRole("combobox", { name: "Search for a song" });
+  const results = page.getByRole("listbox", { name: "Search results" }).getByRole("option");
   await box.fill("brights");
-  await expect(page.getByRole("option").first()).toContainText("Mr. Brightside");
-  await expect(page.getByRole("option").first()).toContainText("The Killers");
+  await expect(page.getByText("Search by Spotify")).toBeVisible();
+  await expect(results.first()).toContainText("Mr. Brightside");
+  await expect(results.first()).toContainText("The Killers");
+  await expect(page.getByRole("link", { name: "Play Mr. Brightside on Spotify" })).toBeVisible();
   // Arrow keys and Enter work too.
+  await box.press("ArrowDown");
+  await box.press("Enter");
+  await expect(page.getByRole("button", { name: "Drag Mr. Brightside - Remastered onto a mile" })).toBeVisible();
+  await expect(box).toHaveValue("");
+  // No "add it as you typed it" option: songs come from search results only.
+  await box.fill("sprawl");
+  await expect(results).toHaveCount(1);
+  await expect(page.getByText(/as you typed/)).toHaveCount(0);
+});
+
+test("without Spotify keys the box suggests from the built-in song list", async ({ page, request }) => {
+  await page.unroute("**/api/songs/search**"); // the real server here has no Spotify keys
+  const race = await createRace(request);
+  await openMap(page, race.id);
+  const box = page.getByRole("combobox", { name: "Search for a song" });
   await box.fill("eye of the");
+  await expect(page.getByRole("listbox", { name: "Search results" }).getByRole("option").first()).toContainText("Eye of the Tiger");
+  await expect(page.getByText("Search by Spotify")).toHaveCount(0);
   await box.press("Enter");
   await expect(page.getByRole("button", { name: "Drag Eye of the Tiger onto a mile" })).toBeVisible();
-  await expect(box).toHaveValue("");
-
-  // Not on the list: type it as "Song – Artist".
-  await box.fill("Sprawl II");
-  await expect(page.getByText("No matches. Type it as Song – Artist to add it anyway.")).toBeVisible();
-  await box.fill("Sprawl II – Arcade Fire");
-  await page.getByRole("option").filter({ hasText: "Add “Sprawl II”" }).click();
-  await expect(page.getByRole("button", { name: "Drag Sprawl II onto a mile" })).toBeVisible();
+  await box.fill("zzzz qqqq");
+  await expect(page.getByText("No matches. Try different words.")).toBeVisible();
 });
 
 test("you can pick a mile without dragging", async ({ page, request }) => {
