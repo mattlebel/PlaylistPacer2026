@@ -1,0 +1,16 @@
+{
+  "bounds": [
+    -74.16,
+    40.54,
+    -73.8,
+    40.89
+  ],
+  "minzoom": 9,
+  "maxzoom": 14,
+  "tiles": 552,
+  "bytes": 11002677,
+  "source": "https://tiles.openfreemap.org/planet",
+  "version": "https://tiles.openfreemap.org/planet/20261025_080012_pt/{z}/{x}/{y}.pbf",
+  "fetchedAt": "2026-10-30T12:45:01.019Z",
+  "attribution": "© OpenFreeMap © OpenMapTiles · Data © OpenStreetMap contributors"
+}
