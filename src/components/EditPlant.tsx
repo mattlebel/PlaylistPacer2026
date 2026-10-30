@@ -6,8 +6,8 @@ import { useParams } from "next/navigation";
 import { api, ApiError, type OwnSong } from "@/lib/client/api";
 import { editKeyFor } from "@/lib/client/keys";
 import { mileByN, mileLabel } from "@/lib/race";
-import { spotifyTrackUrl } from "@/lib/spotify";
-import { SpotifyIcon } from "./brand";
+import { PreviewButton, SpotifyPlayer } from "./SpotifyPlayer";
+import { usePreview } from "./usePreview";
 
 /** Edit links from the first version of the app still work: see your song, or take it off the course. */
 export function EditPlant() {
@@ -17,6 +17,7 @@ export function EditPlant() {
   const [err, setErr] = useState<string | null>(null);
   const [removed, setRemoved] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const preview = usePreview();
 
   const load = useCallback(
     async (k: string) => {
@@ -64,11 +65,9 @@ export function EditPlant() {
         </h1>
       </div>
       <div className="flex items-center gap-3 rounded-xl bg-ink/25 p-2 pr-3">
-        {own.song.art && own.song.spotifyId ? (
-          <a href={spotifyTrackUrl(own.song.spotifyId)} target="_blank" rel="noreferrer" aria-label={`Play ${own.song.title} on Spotify`} className="h-14 w-14 shrink-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={own.song.art} alt="" className="h-full w-full rounded-[4px] object-cover" />
-          </a>
+        {own.song.art ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={own.song.art} alt="" className="h-14 w-14 shrink-0 rounded-[4px] object-cover" />
         ) : (
           <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[4px] bg-ink-3">♪</span>
         )}
@@ -76,12 +75,11 @@ export function EditPlant() {
           <div className="truncate font-semibold text-chalk">{own.song.title}</div>
           <div className="truncate text-sm text-pink/70">{own.song.artist}</div>
         </div>
-        {own.song.spotifyId && (
-          <a href={spotifyTrackUrl(own.song.spotifyId)} target="_blank" rel="noreferrer" className="p-1 text-pink/70 hover:text-chalk" aria-label={`Open ${own.song.title} on Spotify`}>
-            <SpotifyIcon size={18} />
-          </a>
-        )}
+        {own.song.spotifyId && <PreviewButton song={own.song} preview={preview} />}
       </div>
+      {own.song.spotifyId && preview.embedFor(own.song) && (
+        <SpotifyPlayer id={own.song.spotifyId} title={`Preview ${own.song.title} on Spotify`} autoPlay={preview.embedFor(own.song)!.auto} />
+      )}
       <div className="flex flex-wrap items-center gap-4">
         {mapLink}
         {own.removable &&

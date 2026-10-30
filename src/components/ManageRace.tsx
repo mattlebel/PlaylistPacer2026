@@ -10,6 +10,8 @@ import { RaceDetailsFields, useRaceDetails } from "./RaceDetails";
 import { cheer } from "@/lib/sounds";
 import { savePlaylist, spotifyConfigured, spotifyConnected, spotifyTrackUrl, startSpotifyLogin } from "@/lib/spotify";
 import { SpotifyIcon } from "./brand";
+import { PreviewButton, SpotifyPlayer } from "./SpotifyPlayer";
+import { usePreview } from "./usePreview";
 import { ChipStack } from "./ChipStack";
 import { Toast } from "./ui";
 
@@ -321,13 +323,12 @@ function Playlist({ data, name, manageKey }: { data: Manage; name: string; manag
 
 function SongRow({ entry: e, raceId, manageKey, onChange }: { entry: Entry; raceId: string; manageKey: string; onChange(): void }) {
   const [confirm, setConfirm] = useState(false);
+  const preview = usePreview();
   return (
     <li className="flex flex-wrap items-center gap-3 rounded-xl bg-ink/20 p-2 pr-3">
-      {e.song.art && e.song.spotifyId ? (
-        <a href={spotifyTrackUrl(e.song.spotifyId)} target="_blank" rel="noreferrer" aria-label={`Play ${e.song.title} on Spotify`} className="h-12 w-12 shrink-0">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={e.song.art} alt="" className="h-full w-full rounded-[4px] object-cover" />
-        </a>
+      {e.song.art ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={e.song.art} alt="" className="h-12 w-12 shrink-0 rounded-[4px] object-cover" />
       ) : (
         <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[4px] bg-ink-3">♪</span>
       )}
@@ -338,11 +339,7 @@ function SongRow({ entry: e, raceId, manageKey, onChange }: { entry: Entry; race
         <div className="text-sm">{e.isRunner ? "Your pick" : `from ${e.from ?? "someone who didn't leave a name"}`}</div>
         {e.message && <blockquote className="mt-1 border-l-2 border-pink/40 pl-3 text-sm text-blush">“{e.message}”</blockquote>}
       </div>
-      {e.song.spotifyId && (
-        <a href={spotifyTrackUrl(e.song.spotifyId)} target="_blank" rel="noreferrer" className="shrink-0 p-1 text-pink/70 hover:text-chalk" aria-label={`Open ${e.song.title} on Spotify`}>
-          <SpotifyIcon size={18} />
-        </a>
-      )}
+      {e.song.spotifyId && <PreviewButton song={e.song} preview={preview} />}
       <div className="shrink-0 text-xs">
         {confirm ? (
           <span className="flex gap-2">
@@ -365,6 +362,9 @@ function SongRow({ entry: e, raceId, manageKey, onChange }: { entry: Entry; race
           </button>
         )}
       </div>
+      {e.song.spotifyId && preview.embedFor(e.song) && (
+        <SpotifyPlayer id={e.song.spotifyId} title={`Preview ${e.song.title} on Spotify`} autoPlay={preview.embedFor(e.song)!.auto} className="basis-full" />
+      )}
     </li>
   );
 }

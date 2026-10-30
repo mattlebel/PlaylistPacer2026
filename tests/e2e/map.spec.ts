@@ -77,8 +77,20 @@ test("one search box: Spotify results as you type", async ({ page, request }) =>
   await expect(page.getByText("Search by Spotify")).toBeVisible();
   await expect(results.first()).toContainText("Mr. Brightside");
   await expect(results.first()).toContainText("The Killers");
-  await expect(page.getByRole("link", { name: "Play Mr. Brightside on Spotify" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Preview Mr. Brightside", exact: true })).toBeVisible();
+  // Previews only: nothing links out to the Spotify app.
+  await expect(page.getByRole("link", { name: /on Spotify/ })).toHaveCount(0);
+  await expect(page.getByText("Click a song to pick it")).toBeVisible();
+  // The row under the pointer glows, with a hand cursor, so it's clear it can be picked.
+  const row = page.getByRole("listbox", { name: "Search results" }).locator("li").nth(1);
+  await row.hover({ position: { x: 4, y: 4 } });
+  await expect(row).toHaveCSS("cursor", "pointer");
+  await expect(row).toHaveCSS("box-shadow", /0px 0px 14px/);
+  await expect(page.getByRole("listbox", { name: "Search results" }).locator("li").nth(0)).not.toHaveCSS("box-shadow", /0px 0px 14px/);
   // Arrow keys and Enter work too.
+  await page.mouse.move(0, 0);
+  await box.fill("bright");
+  await box.fill("brights");
   await box.press("ArrowDown");
   await box.press("Enter");
   await expect(page.getByRole("button", { name: "Drag Mr. Brightside - Remastered onto a mile" })).toBeVisible();
@@ -475,7 +487,11 @@ test("the start and finish markers are flagged, and the live feed shows album ar
   await expect(marker(page, 26)).toContainText(/finish/i);
   await expect(page.locator(".maplibregl-marker").getByText("GO", { exact: true })).toHaveCount(0);
   const feed = page.getByRole("region", { name: "Live feed" });
-  await expect(feed.getByRole("link", { name: "Play Don't Stop Me Now on Spotify" }).locator("img")).toHaveAttribute("src", "https://i.scdn.co/image/test");
+  await expect(feed.locator("img")).toHaveAttribute("src", "https://i.scdn.co/image/test");
+  await expect(feed.getByRole("link")).toHaveCount(0);
+  // ▶ in the feed previews the song (here, with no clip found, Spotify's player under it).
+  await feed.getByRole("button", { name: "Preview Don't Stop Me Now" }).click();
+  await expect(feed.getByTitle("Preview Don't Stop Me Now on Spotify")).toHaveAttribute("src", /open\.spotify\.com\/embed\/track\/q{22}/);
 });
 
 test("link previews are personalized", async ({ request }) => {

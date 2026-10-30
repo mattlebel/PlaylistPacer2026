@@ -11,7 +11,6 @@ import { COURSE_NOTES, COURSE_NOTES_CREDIT } from "@/lib/courseNotes";
 import { etaAtMile, finishEta, fmtPace, fmtTimeOfDay, MILES, mileByN, mileInSentence, mileLabel, RACE, startHhmm, waveLabel } from "@/lib/race";
 import { songKey } from "@/lib/songKey";
 import { cheer, cowbell, roar, setSoundOn, soundOn, welcome } from "@/lib/sounds";
-import { spotifyTrackUrl } from "@/lib/spotify";
 import type { Song } from "@/lib/types";
 import { SpotifyIcon } from "./brand";
 import { Bib } from "./Bib";
@@ -20,7 +19,7 @@ import { DragOntoAMile, FindASong, HearItOutThere } from "./HowItWorks";
 import { ChipStack } from "./ChipStack";
 import { CourseMap, type CourseMapHandle, type MarkerState } from "./CourseMap";
 import { SongSearch } from "./SongSearch";
-import { SpotifyPlayer } from "./SpotifyPlayer";
+import { PreviewButton, SpotifyPlayer } from "./SpotifyPlayer";
 import { holdingPreview, holdPreview, releasePreview, usePreview } from "./usePreview";
 import { Modal, Toast } from "./ui";
 
@@ -964,10 +963,8 @@ function MileSheet({
         {mile.songs.map((e) => (
           <li key={e.id} className="flex flex-wrap items-center gap-3 rounded-xl bg-ink/25 p-2 pr-3">
             {e.song.art && e.song.spotifyId ? (
-              <a href={spotifyTrackUrl(e.song.spotifyId)} target="_blank" rel="noreferrer" aria-label={`Play ${e.song.title} on Spotify`} className="h-12 w-12 shrink-0">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={e.song.art} alt="" className="h-full w-full rounded-[4px] object-cover" />
-              </a>
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={e.song.art} alt="" className="h-12 w-12 shrink-0 rounded-[4px] object-cover" />
             ) : (
               <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[4px] bg-ink-3">♪</span>
             )}
@@ -979,11 +976,6 @@ function MileSheet({
                 {e.song.artist} · {e.isRunner ? `${runner}'s pick` : `from ${e.from ?? "a friend"}`}
               </div>
             </div>
-            {e.song.spotifyId && (
-              <a href={spotifyTrackUrl(e.song.spotifyId)} target="_blank" rel="noreferrer" className="shrink-0 p-1 text-pink/70 hover:text-chalk" aria-label={`Open ${e.song.title} on Spotify`}>
-                <SpotifyIcon size={18} />
-              </a>
-            )}
             {e.song.spotifyId && (
               <button
                 className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold ${
@@ -1163,6 +1155,9 @@ function FeedLabel() {
 
 const TICK_MS = 2600;
 
+/** A feed entry as a song, for previews. */
+const feedSong = (r: RegistryData["recent"][number]): Song => ({ title: r.title, artist: r.artist, spotifyId: r.spotifyId ?? undefined, art: r.art ?? undefined });
+
 /** Two of the latest songs at a time, rolling through the rest: the welcome popup's peek at the live feed. */
 function FeedTicker({ recent, runner, offset }: { recent: RegistryData["recent"]; runner: string; offset: number }) {
   const [i, setI] = useState(0);
@@ -1199,6 +1194,7 @@ function FeedRows({
   rolling?: boolean;
 }) {
   const now = useServerNow(offset);
+  const preview = usePreview();
   return (
         <ol className={compact ? "space-y-0.5" : "space-y-1"}>
           <AnimatePresence initial={false} mode={rolling ? "popLayout" : "sync"}>
@@ -1212,11 +1208,9 @@ function FeedRows({
                 transition={{ duration: rolling ? 0.45 : 0.3, ease: "easeOut" }}
               >
                 <div className={`flex items-center gap-3 rounded-xl px-2 hover:bg-ink/25 ${compact ? "py-1" : "py-1.5"}`}>
-                  {r.art && r.spotifyId ? (
-                    <a href={spotifyTrackUrl(r.spotifyId)} target="_blank" rel="noreferrer" aria-label={`Play ${r.title} on Spotify`} className={`shrink-0 ${compact ? "h-8 w-8" : "h-10 w-10"}`}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={r.art} alt="" className="h-full w-full rounded-[4px] object-cover" />
-                    </a>
+                  {r.art ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={r.art} alt="" className={`shrink-0 rounded-[4px] object-cover ${compact ? "h-8 w-8" : "h-10 w-10"}`} />
                   ) : (
                     <span aria-hidden className={`grid shrink-0 place-items-center rounded-[4px] bg-ink-3 ${compact ? "h-8 w-8" : "h-10 w-10"}`}>♪</span>
                   )}
@@ -1238,12 +1232,11 @@ function FeedRows({
                       <div className="min-w-0 flex-1 text-sm leading-snug">{body}</div>
                     );
                   })()}
-                  {r.spotifyId && (
-                    <a href={spotifyTrackUrl(r.spotifyId)} target="_blank" rel="noreferrer" className="shrink-0 p-1 text-pink/60 hover:text-chalk" aria-label={`Open ${r.title} on Spotify`}>
-                      <SpotifyIcon size={14} />
-                    </a>
-                  )}
+                  {r.spotifyId && !compact && <PreviewButton song={feedSong(r)} preview={preview} size="sm" />}
                 </div>
+                {!compact && r.spotifyId && preview.embedFor(feedSong(r)) && (
+                  <SpotifyPlayer id={r.spotifyId} title={`Preview ${r.title} on Spotify`} autoPlay={preview.embedFor(feedSong(r))!.auto} className="mt-1" />
+                )}
               </motion.li>
             ))}
           </AnimatePresence>

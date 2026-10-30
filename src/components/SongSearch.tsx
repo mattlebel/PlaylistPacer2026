@@ -5,7 +5,6 @@ import { searchSongs } from "@/lib/client/api";
 import { suggestSongs } from "@/lib/popularSongs";
 import { mileInSentence } from "@/lib/race";
 import { songKey } from "@/lib/songKey";
-import { spotifyTrackUrl } from "@/lib/spotify";
 import type { Song } from "@/lib/types";
 import { SpotifyIcon } from "./brand";
 import { SpotifyPlayer } from "./SpotifyPlayer";
@@ -97,7 +96,20 @@ export function SongSearch({
     onPick(s);
   };
 
-  const status = busy ? "Searching…" : (err ?? (typing && !options.length && configured !== null ? "No matches. Try different words." : ""));
+  const status = busy ? (
+    "Searching…"
+  ) : err ? (
+    err
+  ) : typing && !options.length && configured !== null ? (
+    "No matches. Try different words."
+  ) : options.length ? (
+    <strong className="font-semibold text-chalk">
+      <span className="[@media(pointer:fine)]:hidden">Tap</span>
+      <span className="hidden [@media(pointer:fine)]:inline">Click</span> a song to pick it ↓
+    </strong>
+  ) : (
+    ""
+  );
 
   return (
     <div>
@@ -141,7 +153,7 @@ export function SongSearch({
         )}
       </div>
       {options.length > 0 && (
-        <ul id={listId} className="mt-2 max-h-80 space-y-1 overflow-y-auto pr-1" role="listbox" aria-label="Search results">
+        <ul id={listId} className="-mx-3 mt-1 max-h-80 space-y-1.5 overflow-y-auto px-3 py-2" role="listbox" aria-label="Search results">
           {options.map((s, i) => {
             const on = takenAt(s);
             const playing = preview.playing(s);
@@ -150,14 +162,24 @@ export function SongSearch({
             return (
               <Fragment key={`${s.spotifyId ?? s.title}-${s.artist}`}>
               <li
+                // The whole row picks the song (▶ and the Spotify link do their own thing). The row under
+                // the pointer, or chosen with the arrow keys, glows.
+                onClick={() => on === undefined && pick(s)}
                 onMouseEnter={() => {
+                  if (on === undefined) setActive(i);
                   stopHover();
                   // Phones fire this on tap too; hover previews are for a mouse only.
                   if (s.spotifyId && !preview.busy && !preview.embedFor(s) && window.matchMedia("(hover: hover) and (pointer: fine)").matches)
                     hover.current = setTimeout(() => preview.showEmbed(s), 500);
                 }}
                 onMouseLeave={stopHover}
-                className={`flex items-center gap-3 rounded-xl px-2 py-1.5 ${on !== undefined ? "opacity-50" : i === current ? "bg-ink/35" : "hover:bg-ink/25"}`}>
+                className={`flex items-center gap-3 rounded-xl px-2 py-1.5 ring-2 transition-[box-shadow,background-color] duration-150 ${
+                  on !== undefined
+                    ? "cursor-not-allowed opacity-50 ring-transparent"
+                    : i === current
+                      ? "cursor-pointer bg-ink/35 ring-pink shadow-[0_0_14px_rgb(247_211_216/0.5)]"
+                      : "cursor-pointer ring-transparent hover:bg-ink/35 hover:shadow-[0_0_14px_rgb(247_211_216/0.5)] hover:ring-pink"
+                }`}>
                 <button
                   type="button"
                   id={`${listId}-${i}`}
@@ -165,9 +187,7 @@ export function SongSearch({
                   aria-selected={i === current}
                   aria-disabled={on !== undefined}
                   disabled={on !== undefined}
-                  className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-not-allowed"
-                  onMouseEnter={() => setActive(i)}
-                  onClick={() => pick(s)}
+                  className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left disabled:cursor-not-allowed"
                 >
                   {s.art ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -192,18 +212,14 @@ export function SongSearch({
                     }`}
                     aria-label={`Preview ${s.title}`}
                     aria-pressed={playing || showing}
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       stopHover();
                       preview.toggle(s);
                     }}
                   >
                     {preview.loading(s) ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-ink border-t-transparent" /> : playing ? "❚❚" : "▶"}
                   </button>
-                )}
-                {s.spotifyId && (
-                  <a href={spotifyTrackUrl(s.spotifyId)} target="_blank" rel="noreferrer" className="shrink-0 p-1 text-pink/70 hover:text-chalk" aria-label={`Play ${s.title} on Spotify`}>
-                    <SpotifyIcon size={18} />
-                  </a>
                 )}
               </li>
               {showing && (

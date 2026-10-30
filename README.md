@@ -149,9 +149,10 @@ GitHub Actions runs lint, type check, unit tests, build and the browser tests on
 
 ## Spotify branding
 
-Wherever Spotify data appears (search results, the song you're holding, the songs on each mile), the Spotify
-icon is shown, artwork links back to the track, and artwork is never cropped, overlaid or animated.
-Spotify's design guidelines require this. Re-read them before a wider launch:
+Search results say "Search by Spotify", the song you're holding shows the Spotify icon, previews use
+Spotify's own player where possible, and artwork is never cropped, overlaid or animated. By choice,
+songs don't link out to the Spotify app (there's a ▶ preview instead), although Spotify's design
+guidelines ask that metadata link back to Spotify. Re-read them before a wider launch:
 [developer.spotify.com/documentation/design](https://developer.spotify.com/documentation/design).
 
 ## Stack

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { Song } from "@/lib/types";
+import type { usePreview } from "./usePreview";
 
 /**
  * Spotify's preview player for one track. Through Spotify's iFrame API it can start playing as soon
@@ -88,4 +90,39 @@ export function SpotifyPlayer({ id, title, autoPlay = false, className = "" }: {
       />
     );
   return <div ref={box} className={`h-20 w-full overflow-hidden rounded-xl bg-ink/30 ${className}`} data-spotify-player={id} />;
+}
+
+/** Round ▶ for one song, driven by `usePreview`: spinner while it loads, ❚❚ while it plays. */
+export function PreviewButton({
+  song,
+  preview,
+  size = "md",
+}: {
+  song: Song;
+  preview: ReturnType<typeof usePreview>;
+  size?: "sm" | "md";
+}) {
+  const on = preview.playing(song) || !!preview.embedFor(song);
+  return (
+    <button
+      type="button"
+      className={`grid shrink-0 place-items-center rounded-full border ${size === "sm" ? "h-8 w-8 text-[10px]" : "h-10 w-10 text-[12px]"} ${
+        on ? "border-chalk bg-chalk text-ink" : "border-pink/30 hover:border-pink"
+      }`}
+      aria-label={`Preview ${song.title}`}
+      aria-pressed={on}
+      onClick={(e) => {
+        e.stopPropagation();
+        preview.toggle(song);
+      }}
+    >
+      {preview.loading(song) ? (
+        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-ink border-t-transparent" />
+      ) : preview.playing(song) ? (
+        "❚❚"
+      ) : (
+        "▶"
+      )}
+    </button>
+  );
 }
