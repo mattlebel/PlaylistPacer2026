@@ -45,9 +45,32 @@ export function toSong(t: SpTrack): Song {
   };
 }
 
+/**
+ * Recent searches, so friends typing the same thing ("mr brightside") don't each cost a Spotify call.
+ * Kept in memory for a few hours; the oldest entries drop off once it's full.
+ */
+const CACHE_MS = 6 * 3600_000;
+const CACHE_MAX = 1000;
+const recent = new Map<string, { at: number; songs: Song[] }>();
+
+export function clearSearchCache() {
+  recent.clear();
+}
+
 export async function searchSongs(q: string): Promise<Song[]> {
   const query = q.trim().slice(0, 100);
   if (query.length < 2) return [];
+  const key = query.toLowerCase().replace(/\s+/g, " ");
+  const hit = recent.get(key);
+  if (hit && Date.now() - hit.at < CACHE_MS) return hit.songs;
+  const songs = await spotifySearch(query);
+  recent.delete(key);
+  recent.set(key, { at: Date.now(), songs });
+  if (recent.size > CACHE_MAX) recent.delete(recent.keys().next().value!);
+  return songs;
+}
+
+async function spotifySearch(query: string): Promise<Song[]> {
   const url = `https://api.spotify.com/v1/search?type=track&limit=10&q=${encodeURIComponent(query)}`;
   let res = await fetch(url, { headers: { Authorization: `Bearer ${await appToken()}` } });
   if (res.status === 401) {

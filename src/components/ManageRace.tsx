@@ -153,16 +153,21 @@ function Playlist({ data, name }: { data: Manage; name: string }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [link, setLink] = useState<string | null>(null);
+  const [missing, setMissing] = useState<string[]>([]);
   const all = data.miles.flatMap((m) => m.songs);
-  const uris = all.map((e) => e.song.uri).filter((u): u is string => !!u);
-  const typed = all.length - uris.length;
 
   const save = async () => {
     if (!spotifyConnected()) return startSpotifyLogin();
     setBusy(true);
     setMsg(null);
     try {
-      setLink(await savePlaylist(`${name}'s ${RACE.name}`, "Picked by friends and family with Playlist Pacer. In course order, start to finish. No shuffle!", uris));
+      const res = await savePlaylist(
+        `${name}'s ${RACE.name}`,
+        "Picked by friends and family with Playlist Pacer. In course order, start to finish. No shuffle!",
+        all.map((e) => e.song),
+      );
+      setLink(res.url);
+      setMissing(res.missing.map((s) => `${s.title} (${s.artist})`));
     } catch (e) {
       setMsg((e as Error).message);
     } finally {
@@ -181,9 +186,9 @@ function Playlist({ data, name }: { data: Manage; name: string }) {
       </div>
       {spotifyConfigured() ? (
         <div className="flex flex-wrap items-center gap-3">
-          <button className="btn bg-pink px-6 py-3 text-sm" onClick={save} disabled={busy || !uris.length}>
+          <button className="btn bg-pink px-6 py-3 text-sm" onClick={save} disabled={busy || !all.length}>
             <SpotifyIcon size={18} />
-            {spotifyConnected() ? (busy ? "Saving…" : `Save ${uris.length} songs to Spotify`) : "Connect Spotify to save the playlist"}
+            {spotifyConnected() ? (busy ? "Saving…" : `Save ${all.length} ${all.length === 1 ? "song" : "songs"} to Spotify`) : "Connect Spotify to save the playlist"}
           </button>
           {link && (
             <a href={link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-semibold underline">
@@ -195,10 +200,10 @@ function Playlist({ data, name }: { data: Manage; name: string }) {
       ) : (
         <p className="text-sm text-pink/70">Spotify isn&apos;t connected to this app yet, so build the playlist by hand from the list below.</p>
       )}
-      {spotifyConfigured() && typed > 0 && (
+      {missing.length > 0 && (
         <p className="text-sm text-pink/70">
-          {typed} {typed === 1 ? "song was" : "songs were"} typed in rather than picked from Spotify. Add {typed === 1 ? "it" : "them"} to the
-          playlist by hand.
+          Couldn&apos;t find {missing.length === 1 ? "this one" : "these"} on Spotify, so add {missing.length === 1 ? "it" : "them"} by hand:{" "}
+          {missing.join(", ")}.
         </p>
       )}
     </section>

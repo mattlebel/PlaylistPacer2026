@@ -55,6 +55,27 @@ describe("song search", () => {
     expect(searches).toBe(2);
   });
 
+  it("remembers recent searches, so repeats don't call Spotify again", async () => {
+    let searches = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("api/token")) return json({ access_token: "app", expires_in: 3600 });
+        searches++;
+        return json({ tracks: { items: [track] } });
+      }),
+    );
+    const { searchSongs, clearSearchCache } = await import("@/lib/server/songSearch");
+    await searchSongs("Mr Brightside");
+    await searchSongs("  mr   brightside ");
+    expect(searches).toBe(1);
+    await searchSongs("mr brightsid");
+    expect(searches).toBe(2);
+    clearSearchCache();
+    await searchSongs("mr brightside");
+    expect(searches).toBe(3);
+  });
+
   it("reports when it isn't configured", async () => {
     delete process.env.SPOTIFY_CLIENT_SECRET;
     const { songSearchConfigured } = await import("@/lib/server/songSearch");

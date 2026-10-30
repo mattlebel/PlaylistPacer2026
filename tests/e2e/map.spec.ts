@@ -43,6 +43,27 @@ test("a friend drags a song onto a mile", async ({ page, request }) => {
   await expect(page.getByRole("dialog", { name: "How it works" })).toHaveCount(0);
 });
 
+test("one search box suggests songs as you type", async ({ page, request }) => {
+  const race = await createRace(request);
+  await openMap(page, race.id);
+  const box = page.getByRole("combobox", { name: "Search for a song" });
+  await box.fill("brights");
+  await expect(page.getByRole("option").first()).toContainText("Mr. Brightside");
+  await expect(page.getByRole("option").first()).toContainText("The Killers");
+  // Arrow keys and Enter work too.
+  await box.fill("eye of the");
+  await box.press("Enter");
+  await expect(page.getByRole("button", { name: "Drag Eye of the Tiger onto a mile" })).toBeVisible();
+  await expect(box).toHaveValue("");
+
+  // Not on the list: type it as "Song – Artist".
+  await box.fill("Sprawl II");
+  await expect(page.getByText("No matches. Type it as Song – Artist to add it anyway.")).toBeVisible();
+  await box.fill("Sprawl II – Arcade Fire");
+  await page.getByRole("option").filter({ hasText: "Add “Sprawl II”" }).click();
+  await expect(page.getByRole("button", { name: "Drag Sprawl II onto a mile" })).toBeVisible();
+});
+
 test("you can pick a mile without dragging", async ({ page, request }) => {
   const race = await createRace(request);
   await openMap(page, race.id);

@@ -25,8 +25,8 @@ describe("savePlaylist", () => {
         return json({ snapshot_id: "x" });
       }),
     );
-    const uris = Array.from({ length: 150 }, (_, i) => `spotify:track:${i}`);
-    expect(await savePlaylist("Don't peek", "desc", uris)).toBe("https://open.spotify.com/playlist/NEW");
+    const songs = Array.from({ length: 150 }, (_, i) => ({ title: `Song ${i}`, artist: "X", uri: `spotify:track:${i}` }));
+    expect(await savePlaylist("Don't peek", "desc", songs)).toEqual({ url: "https://open.spotify.com/playlist/NEW", missing: [] });
     expect(JSON.parse(String(calls[0].init.body))).toEqual({ name: "Don't peek", description: "desc", public: false });
     expect((calls[0].init.headers as Record<string, string>).Authorization).toBe("Bearer tok");
     const batches = calls.slice(1).map((c) => JSON.parse(String(c.init.body)).uris as string[]);
@@ -36,7 +36,33 @@ describe("savePlaylist", () => {
   });
 
   it("refuses an empty playlist", async () => {
-    await expect(savePlaylist("x", "y", [])).rejects.toThrow(/None of these songs/);
+    await expect(savePlaylist("x", "y", [])).rejects.toThrow(/Couldn't find any/);
+  });
+
+  it("looks up songs without a Spotify link by title and artist, keeping course order", async () => {
+    const searches: string[] = [];
+    let added: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        if (url.includes("/search?")) {
+          const q = decodeURIComponent(url.split("q=")[1]);
+          searches.push(q);
+          return json({ tracks: { items: q.includes("Nope") ? [] : [{ uri: "spotify:track:FOUND" }] } });
+        }
+        if (url.endsWith("/me/playlists")) return json({ id: "NEW", external_urls: { spotify: "u" } });
+        added = JSON.parse(String(init.body)).uris;
+        return json({});
+      }),
+    );
+    const res = await savePlaylist("x", "y", [
+      { title: "Empire State of Mind", artist: "JAY-Z", uri: "spotify:track:A" },
+      { title: "Juice", artist: "Lizzo & Friends" },
+      { title: "Nope", artist: "Nobody" },
+    ]);
+    expect(searches[0]).toBe("track:Juice artist:Lizzo");
+    expect(added).toEqual(["spotify:track:A", "spotify:track:FOUND"]);
+    expect(res.missing).toEqual([{ title: "Nope", artist: "Nobody" }]);
   });
 
   it("refreshes an expired token first", async () => {
@@ -55,7 +81,7 @@ describe("savePlaylist", () => {
         return json({ id: "P", external_urls: { spotify: "u" } });
       }),
     );
-    await savePlaylist("x", "y", ["spotify:track:1"]);
+    await savePlaylist("x", "y", [{ title: "a", artist: "b", uri: "spotify:track:1" }]);
     expect(urls[0]).toContain("accounts.spotify.com/api/token");
     expect(auth.every((a) => a === "Bearer new")).toBe(true);
     expect(JSON.parse(localStorage.getItem(TOKEN_KEY)!).refresh_token).toBe("ref");
@@ -63,7 +89,7 @@ describe("savePlaylist", () => {
 
   it("logs out on 401", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => json({}, 401)));
-    await expect(savePlaylist("x", "y", ["spotify:track:1"])).rejects.toThrow(/expired/);
+    await expect(savePlaylist("x", "y", [{ title: "a", artist: "b", uri: "spotify:track:1" }])).rejects.toThrow(/expired/);
     expect(spotifyConnected()).toBe(false);
   });
 });

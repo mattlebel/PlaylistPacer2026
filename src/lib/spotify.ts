@@ -114,9 +114,33 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return res.status === 204 ? (undefined as T) : res.json();
 }
 
-/** Save tracks, in order, as a brand new private playlist. Returns its open.spotify.com link. */
-export async function savePlaylist(name: string, description: string, uris: string[]) {
-  if (!uris.length) throw new Error("None of these songs are on Spotify yet.");
+interface PlaylistSong {
+  title: string;
+  artist: string;
+  uri?: string;
+}
+
+/** Finds the closest Spotify track for a song that was picked from the built-in list or typed in. */
+async function findTrack(s: PlaylistSong): Promise<string | null> {
+  const artist = s.artist.split(/,|&| feat\.? /i)[0].trim();
+  const q = encodeURIComponent(`track:${s.title} artist:${artist}`);
+  const r = await api<{ tracks?: { items?: ({ uri: string } | null)[] } }>(`/search?type=track&limit=1&q=${q}`);
+  return r.tracks?.items?.find((t) => t?.uri)?.uri ?? null;
+}
+
+/**
+ * Save songs, in order, as a brand new private playlist. Songs without a Spotify link are looked up
+ * by title and artist first. Returns the playlist's open.spotify.com link and any songs it couldn't find.
+ */
+export async function savePlaylist(name: string, description: string, songs: PlaylistSong[]) {
+  const uris: string[] = [];
+  const missing: PlaylistSong[] = [];
+  for (const s of songs) {
+    const uri = s.uri ?? (await findTrack(s).catch(() => null));
+    if (uri) uris.push(uri);
+    else missing.push(s);
+  }
+  if (!uris.length) throw new Error("Couldn't find any of these songs on Spotify.");
   const pl = await api<{ id: string; external_urls: { spotify: string } }>("/me/playlists", {
     method: "POST",
     body: JSON.stringify({ name, description, public: false }),
@@ -124,5 +148,5 @@ export async function savePlaylist(name: string, description: string, uris: stri
   for (let i = 0; i < uris.length; i += 100) {
     await api(`/playlists/${pl.id}/items`, { method: "POST", body: JSON.stringify({ uris: uris.slice(i, i + 100) }) });
   }
-  return pl.external_urls.spotify;
+  return { url: pl.external_urls.spotify, missing };
 }

@@ -14,7 +14,10 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
 - **Friends:** open the share link and see a quick "how it works" popup, then:
   - The map shows 27 markers (the start and miles 1–26). Each marker is a stack of up to 3 chips
     showing how full that mile is, and the big landmarks get a star.
-  - Search for a song (or type it in), and it becomes a bubble you drag onto a marker. Pause while
+  - Type in one search box and pick a suggestion, and it becomes a bubble you drag onto a marker.
+    Suggestions come from Spotify when it's set up (searches are cached on the server for a few hours),
+    or otherwise from a built-in list of about 375 popular running songs (`src/lib/popularSongs.ts`).
+    Anything else can be typed as "Song – Artist" or "Song by Artist". Pause while
     dragging and the map zooms in toward the bubble (up to two steps) so crowded miles spread out.
     Push against an edge to pan. After the drop it zooms back out to the whole course.
   - You can also pick a mile from a dropdown, or tap a mile and add a song from its popup. Both work
@@ -30,7 +33,8 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
   - Adding closes at 6am on race morning.
 - **Runner's private page:**
   - See every song with full names, and remove any of them.
-  - Save all the songs to Spotify as one playlist, in course order.
+  - Save all the songs to Spotify as one playlist, in course order. Songs picked from the built-in
+    list or typed in are matched on Spotify by title and artist; any it can't find are listed.
 
 Songs from the first version of the app (one song per named "moment") are moved onto the matching
 mile automatically when the server starts. `tests/unit/repo.test.ts` covers that upgrade.
@@ -60,7 +64,7 @@ npm run dev
 
 Open **http://127.0.0.1:3000**. Use 127.0.0.1, not localhost; Spotify login rejects "localhost".
 Without `DATABASE_URL`, data goes into an embedded Postgres (PGlite) under `.data/`, so there's
-nothing to install. Without Spotify keys, friends type songs in instead of searching.
+nothing to install. Without Spotify keys, the search box suggests from the built-in song list instead.
 
 ## Deploy on Render
 

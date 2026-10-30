@@ -56,11 +56,10 @@ export async function addViaApi(request: APIRequestContext, raceId: string, body
   return (await res.json()) as { id: string; editKey: string };
 }
 
-/** Types a song in (Spotify search isn't configured in tests). */
+/** Types a song into the search box as "Song by Artist" and picks it (Spotify search isn't configured in tests). */
 export async function typeSong(scope: Page | ReturnType<Page["locator"]>, title: string, artist: string) {
-  await scope.getByLabel("Song title").first().fill(title);
-  await scope.getByLabel("Artist").first().fill(artist);
-  await scope.getByRole("button", { name: "Use this song" }).first().click();
+  await scope.getByRole("combobox", { name: "Search for a song" }).first().fill(`${title} by ${artist}`);
+  await scope.getByRole("option").filter({ hasText: `Add “${title}”` }).first().click();
 }
 
 /** Answers the welcome popup: your name, then "Let's go". */
