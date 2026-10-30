@@ -10,6 +10,8 @@ export function Modal({
   children,
   accent = "var(--color-pink)",
   wide = false,
+  narrow = false,
+  heading,
   dismissable = true,
 }: {
   open: boolean;
@@ -18,6 +20,9 @@ export function Modal({
   children: ReactNode;
   accent?: string;
   wide?: boolean;
+  narrow?: boolean;
+  /** Shown in place of the plain title (which still names the dialog for screen readers). */
+  heading?: ReactNode;
   /** false: no ✕, and Escape or a tap outside doesn't close it (the popup needs an answer first). */
   dismissable?: boolean;
 }) {
@@ -42,7 +47,7 @@ export function Modal({
             role="dialog"
             aria-modal
             aria-label={title}
-            className={`relative max-h-[92dvh] w-full overflow-y-auto rounded-t-[22px] bg-ink-2 p-5 shadow-[0_30px_80px_rgb(8_10_40/0.5)] sm:rounded-[22px] sm:p-7 ${wide ? "max-w-4xl" : "max-w-2xl"}`}
+            className={`relative max-h-[92dvh] w-full overflow-y-auto rounded-t-[22px] bg-ink-2 p-5 shadow-[0_30px_80px_rgb(8_10_40/0.5)] sm:rounded-[22px] sm:p-7 ${wide ? "max-w-4xl" : narrow ? "max-w-xl" : "max-w-2xl"}`}
             style={{ boxShadow: `inset 0 3px 0 ${accent}, 0 30px 80px rgb(8 10 40 / 0.5)` }}
             initial={{ y: 40, scale: 0.98 }}
             animate={{ y: 0, scale: 1 }}
@@ -50,7 +55,7 @@ export function Modal({
             transition={{ type: "spring", stiffness: 380, damping: 28 }}
           >
             <div className="mb-4 flex min-h-10 items-center justify-between gap-4 sm:mb-5">
-              <h2 className="font-display text-2xl font-bold leading-none tracking-tight sm:text-3xl">{title}</h2>
+              {heading ?? <h2 className="font-display text-2xl font-bold leading-none tracking-tight sm:text-3xl">{title}</h2>}
               {dismissable && (
                 <button
                   onClick={onClose}

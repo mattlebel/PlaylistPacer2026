@@ -25,15 +25,18 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
     without dragging.
   - Tapping ▶ on a search result plays its 30-second preview clip right away (found on the song's
     public Spotify page, or Apple's iTunes search as a backup: `src/lib/server/songPreview.ts`).
-    With a mouse, resting on a result for half a second opens Spotify's preview player; it's also
-    the fallback when no clip turns up.
+    When no clip turns up, Spotify's player opens and starts by itself (through Spotify's iFrame
+    API), so it's still one tap. The same ▶ is in each mile's popup. With a mouse, resting on a
+    result for half a second opens Spotify's player too.
   - After adding, the panel says "Add another song" with your running count and the cursor goes
     back to the search box. Once 15 or fewer spots are left, it suggests miles that still have room.
     A progress bar shows how many of the 81 spots are filled.
   - On phones, once the search box scrolls away, a search bar floats at the bottom of the screen
     and opens search over the whole screen, so you never leave the map.
-  - The welcome popup asks for your first name, and can't be closed until you give one; it shows
-    on your songs as "from Sarah". To change it, reopen "How it works".
+  - The welcome popup shows the runner's bib and, on bigger screens, a peek at the live feed, so
+    it's clear whose race this is. It asks for your first name (pinned to the bottom of the popup
+    so it's always on screen) and can't be closed until you give one; it shows on your songs as
+    "from Sarah". To change it, reopen "How it works".
   - You can remove your own song from the same device.
 - **Live:** the map refreshes every few seconds, so everyone sees what's been picked and which miles
   still have room. A live feed beside the map (a single line under the title on phones) shows the latest songs ("Sarah added “Juice” to mile 7 ·

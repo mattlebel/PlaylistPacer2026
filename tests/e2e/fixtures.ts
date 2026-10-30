@@ -47,6 +47,10 @@ export const test = base.extend<{ errors: string[] }>({
     async ({ page }, use) => {
       setClock(TIMES.weeksBefore);
       await fakeSpotifySearch(page);
+      // No outside calls for previews: "no clip found", and Spotify's player script doesn't load
+      // (so the plain embed shows). Tests that need these route them again.
+      await page.route("**/api/songs/preview**", (route) => route.fulfill({ json: { url: null } }));
+      await page.route("https://open.spotify.com/embed/iframe-api/**", (route) => route.abort());
       const errors: string[] = [];
       page.on("pageerror", (e) => errors.push(e.message));
       page.on("console", (m) => {

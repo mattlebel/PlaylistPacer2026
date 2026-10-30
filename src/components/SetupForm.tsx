@@ -49,7 +49,7 @@ export function SetupForm() {
             Your name
           </label>
           <input id="runner-name" className="field" placeholder="Matt Lebel" value={runnerName} onChange={(e) => setName(e.target.value)} autoComplete="name" required maxLength={40} />
-          <p className="mt-1 text-xs text-pink/60">Friends see your first name: &quot;Help Matt soundtrack 26.2&quot;.</p>
+          <p className="mt-1 text-xs text-pink/60">Friends see your first name: &quot;Help Matt soundtrack his NYC Marathon&quot;.</p>
         </div>
         <div>
           <label htmlFor="runner-email" className="label mb-2 block">

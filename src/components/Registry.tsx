@@ -15,10 +15,13 @@ import { spotifyTrackUrl } from "@/lib/spotify";
 import type { Song } from "@/lib/types";
 import { SpotifyIcon } from "./brand";
 import { Bib } from "./Bib";
+import { LogoMark } from "./Logo";
 import { DragOntoAMile, FindASong, HearItOutThere } from "./HowItWorks";
 import { ChipStack } from "./ChipStack";
 import { CourseMap, type CourseMapHandle, type MarkerState } from "./CourseMap";
 import { SongSearch } from "./SongSearch";
+import { SpotifyPlayer } from "./SpotifyPlayer";
+import { usePreview } from "./usePreview";
 import { Modal, Toast } from "./ui";
 
 type MileData = RegistryData["miles"][number];
@@ -258,7 +261,7 @@ export function Registry() {
     const url = `${window.location.origin}/r/${data.id}`;
     const text = `I put “${song.title}” on ${runnerFirst}'s ${mileInSentence(mile)} (${mileByN(mile)?.title}) of the NYC Marathon 🎵 Add a song for them:`;
     try {
-      if (navigator.share) await navigator.share({ title: `Help ${runnerFirst} soundtrack 26.2`, text, url });
+      if (navigator.share) await navigator.share({ title: `Help ${runnerFirst} soundtrack his NYC Marathon`, text, url });
       else {
         await navigator.clipboard.writeText(`${text} ${url}`);
         say("Copied. Paste it into a text or group chat.");
@@ -364,7 +367,7 @@ export function Registry() {
       <Activity recent={data.recent} runner={runner} offset={offset} />
     </div>
   );
-  const bib = (size: "xs" | "sm" | "md" | "lg", className = "") =>
+  const bib = (size: "2xs" | "xs" | "sm" | "md" | "lg", className = "") =>
     data.bib ? (
       <Bib number={data.bib} name={runner} wave={waveLabel(startHhmm(start))} start={fmtTimeOfDay(start)} size={size} className={className} />
     ) : null;
@@ -379,7 +382,7 @@ export function Registry() {
         <div className="flex items-center gap-4">
           <div className="shrink-0 lg:hidden">{bib("xs", "-rotate-[3deg]")}</div>
           <h1 className="font-display text-[clamp(1.9rem,3.6vw,2.9rem)] font-extrabold leading-[1] tracking-tight [text-wrap:balance]">
-            Help {runner} soundtrack 26.2
+            Help {runner} soundtrack his NYC Marathon
           </h1>
         </div>
         <p className="max-w-2xl text-[13px] leading-snug text-blush lg:text-[15px] lg:leading-relaxed">{intro}</p>
@@ -513,15 +516,50 @@ export function Registry() {
         />
       )}
 
-      <Modal open={howto} onClose={closeHowto} title="How it works" dismissable={!!name.trim()}>
+      <Modal
+        open={howto}
+        onClose={closeHowto}
+        title="How it works"
+        narrow
+        dismissable={!!name.trim()}
+        heading={
+          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+            {data.bib && (
+              <>
+                <div className="shrink-0 sm:hidden">{bib("2xs", "-rotate-[4deg]")}</div>
+                <div className="hidden shrink-0 sm:block">{bib("xs", "-rotate-[4deg]")}</div>
+              </>
+            )}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 font-display text-sm font-bold tracking-tight text-pink/90">
+                <LogoMark size={20} /> playlist pacer
+              </div>
+              <h2 className="mt-1.5 font-display text-2xl font-bold leading-none tracking-tight sm:text-3xl">How it works</h2>
+              <p className="mt-1.5 text-sm leading-snug text-blush">
+                Add songs to {runner}&apos;s NYC Marathon playlist.
+              </p>
+            </div>
+          </div>
+        }
+      >
         <ol className="space-y-3 sm:space-y-4">
           {(
             [
-              ["Find a song", `One that'll get ${runner} moving.`, <FindASong key="1" />],
-              ["Drag it onto a mile", `Each mile holds ${data.perMile}. First come, first served.`, <DragOntoAMile key="2" />],
-              [`${runner} hears it out there`, "Right at that mile, on race day.", <HearItOutThere key="3" />],
+              ["Find a song", `One that'll get ${runner} moving.`, `Search Spotify for something that'll get ${runner} moving.`, <FindASong key="1" />],
+              [
+                "Drag it onto a mile",
+                `Each mile holds ${data.perMile}. First come, first served.`,
+                `Drop it on a marker on ${runner}'s course, like the Queensboro Bridge or mile 20 in the Bronx. Each mile holds ${data.perMile} songs, first come, first served.`,
+                <DragOntoAMile key="2" />,
+              ],
+              [
+                `${runner} hears it out there`,
+                "Right at that mile, on race day.",
+                `Every song goes into ${runner}'s race-day playlist in course order. Add as many as you like: there are ${capacity} spots to fill.`,
+                <HearItOutThere key="3" />,
+              ],
             ] as const
-          ).map(([t, d, art], i) => (
+          ).map(([t, short, long, art], i) => (
             <li key={t} className="flex items-center gap-3 sm:gap-4">
               {art}
               <div className="min-w-0">
@@ -529,13 +567,25 @@ export function Registry() {
                   <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-pink font-display text-sm font-bold text-ink">{i + 1}</span>
                   <span className="font-display text-lg font-bold leading-tight sm:text-xl">{t}</span>
                 </div>
-                <p className="mt-0.5 text-sm leading-snug text-blush">{d}</p>
+                <p className="mt-0.5 text-sm leading-snug text-blush">
+                  <span className="sm:hidden">{short}</span>
+                  <span className="hidden sm:inline">{long}</span>
+                </p>
               </div>
             </li>
           ))}
         </ol>
+        {/* What the live feed looks like, so it's clear other people are already doing this. */}
+        <div className="mt-4 hidden rounded-2xl bg-ink/25 px-3 pb-1.5 pt-3 sm:block" aria-label="Live feed preview">
+          <FeedLabel />
+          {data.recent.length ? (
+            <FeedRows recent={data.recent.slice(0, 2)} runner={runner} offset={offset} compact />
+          ) : (
+            <p className="px-2 py-1 text-sm text-pink/60">No songs yet. Yours could be the first!</p>
+          )}
+        </div>
         <form
-          className="mt-4 border-t border-pink/15 pt-4 sm:mt-6 sm:pt-5"
+          className="sticky -bottom-5 z-10 -mx-5 -mb-5 mt-4 border-t border-pink/15 bg-ink-2 px-5 pb-5 pt-4 sm:-bottom-7 sm:-mx-7 sm:-mb-7 sm:mt-5 sm:px-7 sm:pb-7"
           onSubmit={(e) => {
             e.preventDefault();
             if (!name.trim()) return;
@@ -878,7 +928,7 @@ function MileSheet({
 }) {
   const info = mileByN(mile.n)!;
   const room = perMile - mile.songs.length;
-  const [preview, setPreview] = useState<string | null>(null);
+  const preview = usePreview();
   return (
     <Modal open onClose={onClose} title={`${mileLabel(mile.n)} · ${info.title}`}>
       <div className="flex items-start gap-5">
@@ -920,11 +970,13 @@ function MileSheet({
             )}
             {e.song.spotifyId && (
               <button
-                className="shrink-0 rounded-full border border-pink/30 px-2.5 py-1 text-xs font-semibold hover:border-pink"
-                aria-label={`${preview === e.id ? "Hide preview of" : "Preview"} ${e.song.title}`}
-                onClick={() => setPreview(preview === e.id ? null : e.id)}
+                className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                  preview.playing(e.song) || preview.embedFor(e.song) ? "border-chalk bg-chalk text-ink" : "border-pink/30 hover:border-pink"
+                }`}
+                aria-label={`${preview.playing(e.song) || preview.embedFor(e.song) ? "Stop preview of" : "Preview"} ${e.song.title}`}
+                onClick={() => preview.toggle(e.song)}
               >
-                {preview === e.id ? "Hide" : "▶ Preview"}
+                {preview.loading(e.song) ? "Loading…" : preview.playing(e.song) ? "❚❚ Stop" : preview.embedFor(e.song) ? "Hide" : "▶ Preview"}
               </button>
             )}
             {mine[e.id] && isOpen && (
@@ -932,13 +984,12 @@ function MileSheet({
                 Remove mine
               </button>
             )}
-            {preview === e.id && e.song.spotifyId && (
-              <iframe
+            {preview.embedFor(e.song) && e.song.spotifyId && (
+              <SpotifyPlayer
+                id={e.song.spotifyId}
                 title={`Preview ${e.song.title} on Spotify`}
-                src={`https://open.spotify.com/embed/track/${e.song.spotifyId}?utm_source=generator&theme=0`}
-                className="mt-1 h-20 w-full basis-full rounded-xl border-0"
-                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                loading="lazy"
+                autoPlay={preview.embedFor(e.song)!.auto}
+                className="mt-1 basis-full"
               />
             )}
           </li>
@@ -1072,39 +1123,76 @@ function Activity({ recent, runner, offset }: { recent: RegistryData["recent"]; 
 
 /** Desktop: the latest songs in a card beside the map. New ones slide in; click one to open its mile. */
 function Feed({ recent, runner, offset, onOpen }: { recent: RegistryData["recent"]; runner: string; offset: number; onOpen(n: number): void }) {
-  const now = useServerNow(offset);
   return (
     <section className="panel hidden p-5 lg:block" aria-label="Live feed">
-      <div className="label mb-3 flex items-center gap-2">
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-mint opacity-60" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-mint" />
-        </span>
-        Live feed
-      </div>
-      {recent.length === 0 ? (
-        <p className="text-sm text-pink/60">No songs yet. Be the first!</p>
-      ) : (
-        <ol className="space-y-1">
+      <FeedLabel />
+      {recent.length === 0 ? <p className="text-sm text-pink/60">No songs yet. Be the first!</p> : <FeedRows recent={recent} runner={runner} offset={offset} onOpen={onOpen} />}
+    </section>
+  );
+}
+
+function FeedLabel() {
+  return (
+    <div className="label mb-3 flex items-center gap-2">
+      <span className="relative flex h-2 w-2 shrink-0">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-mint opacity-60" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-mint" />
+      </span>
+      <span>
+        Live feed <span className="text-pink/60">– see what others are adding</span>
+      </span>
+    </div>
+  );
+}
+
+/** The latest songs. `onOpen` makes each one open its mile. */
+function FeedRows({
+  recent,
+  runner,
+  offset,
+  onOpen,
+  compact = false,
+}: {
+  recent: RegistryData["recent"];
+  runner: string;
+  offset: number;
+  onOpen?(n: number): void;
+  /** Smaller art, one line each. */
+  compact?: boolean;
+}) {
+  const now = useServerNow(offset);
+  return (
+        <ol className={compact ? "space-y-0.5" : "space-y-1"}>
           <AnimatePresence initial={false}>
             {recent.map((r) => (
               <motion.li key={r.id} layout initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
-                <div className="flex items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-ink/25">
+                <div className={`flex items-center gap-3 rounded-xl px-2 hover:bg-ink/25 ${compact ? "py-1" : "py-1.5"}`}>
                   {r.art && r.spotifyId ? (
-                    <a href={spotifyTrackUrl(r.spotifyId)} target="_blank" rel="noreferrer" aria-label={`Play ${r.title} on Spotify`} className="h-10 w-10 shrink-0">
+                    <a href={spotifyTrackUrl(r.spotifyId)} target="_blank" rel="noreferrer" aria-label={`Play ${r.title} on Spotify`} className={`shrink-0 ${compact ? "h-8 w-8" : "h-10 w-10"}`}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={r.art} alt="" className="h-full w-full rounded-[4px] object-cover" />
                     </a>
                   ) : (
-                    <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-[4px] bg-ink-3">♪</span>
+                    <span aria-hidden className={`grid shrink-0 place-items-center rounded-[4px] bg-ink-3 ${compact ? "h-8 w-8" : "h-10 w-10"}`}>♪</span>
                   )}
-                  <button className="min-w-0 flex-1 text-left text-sm leading-snug" onClick={() => onOpen(r.mile)}>
-                    <span className="line-clamp-2">
-                      <strong className="font-semibold text-chalk">{r.from ?? (r.isRunner ? runner : "Someone")}</strong> added “{r.title}” to{" "}
-                      {mileInSentence(r.mile)}
-                    </span>
-                    {now !== null && <span className="block font-mono text-[10px] text-pink/50">{ago(now - new Date(r.at).getTime())}</span>}
-                  </button>
+                  {(() => {
+                    const body = (
+                      <>
+                        <span className={compact ? "line-clamp-1" : "line-clamp-2"}>
+                          <strong className="font-semibold text-chalk">{r.from ?? (r.isRunner ? runner : "Someone")}</strong> added “{r.title}” to{" "}
+                          {mileInSentence(r.mile)}
+                        </span>
+                        {now !== null && <span className={`font-mono text-[10px] text-pink/50 ${compact ? "hidden" : "block"}`}>{ago(now - new Date(r.at).getTime())}</span>}
+                      </>
+                    );
+                    return onOpen ? (
+                      <button className="min-w-0 flex-1 text-left text-sm leading-snug" onClick={() => onOpen(r.mile)}>
+                        {body}
+                      </button>
+                    ) : (
+                      <div className="min-w-0 flex-1 text-sm leading-snug">{body}</div>
+                    );
+                  })()}
                   {r.spotifyId && (
                     <a href={spotifyTrackUrl(r.spotifyId)} target="_blank" rel="noreferrer" className="shrink-0 p-1 text-pink/60 hover:text-chalk" aria-label={`Open ${r.title} on Spotify`}>
                       <SpotifyIcon size={14} />
@@ -1115,7 +1203,5 @@ function Feed({ recent, runner, offset, onOpen }: { recent: RegistryData["recent
             ))}
           </AnimatePresence>
         </ol>
-      )}
-    </section>
   );
 }

@@ -5,7 +5,7 @@ const overflow = (page: import("@playwright/test").Page) => page.evaluate(() => 
 test("friends can drag a song onto the map from a phone", async ({ page, request }) => {
   const race = await createRace(request);
   await openMap(page, race.id);
-  await expect(page.getByRole("heading", { name: "Help Matt soundtrack 26.2" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Help Matt soundtrack his NYC Marathon" })).toBeVisible();
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 
   await typeSong(page, "Dog Days Are Over", "Florence + The Machine");

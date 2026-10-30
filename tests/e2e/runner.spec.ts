@@ -67,5 +67,5 @@ test("an edit link from the first version still works", async ({ page, request }
   await page.getByRole("button", { name: "Yes, remove my song" }).click();
   await expect(page.getByRole("heading", { name: "Removed" })).toBeVisible();
   await page.getByRole("link", { name: "See the live map" }).click();
-  await expect(page.getByRole("heading", { name: "Help Matt soundtrack 26.2" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Help Matt soundtrack his NYC Marathon" })).toBeVisible();
 });

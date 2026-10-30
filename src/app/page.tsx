@@ -35,7 +35,7 @@ export default function Home() {
         <div className="flex min-w-0 flex-[1_1_400px] justify-center">
           <div className="w-full max-w-[480px] rounded-md bg-ink/90 p-6 shadow-[0_24px_50px_rgb(8_10_40/0.35)] sm:p-7">
             <div className="flex items-baseline justify-between gap-3">
-              <span className="font-display text-2xl font-extrabold tracking-tight">Help Matt soundtrack 26.2</span>
+              <span className="font-display text-2xl font-extrabold tracking-tight">Help Matt soundtrack his NYC Marathon</span>
             </div>
             <div className="mt-1 font-mono text-[10px] uppercase text-pink/70">{total} songs · live</div>
             <div className="mt-6 flex items-end justify-between gap-[3px]" aria-hidden>

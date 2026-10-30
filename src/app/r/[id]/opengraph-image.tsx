@@ -11,7 +11,7 @@ export const contentType = "image/png";
 const font = (w: number) =>
   readFile(join(process.cwd(), `node_modules/@fontsource/bricolage-grotesque/files/bricolage-grotesque-latin-${w}-normal.woff`));
 
-/** Link preview: "Help Matt soundtrack 26.2" on the cobalt sleeve, with progress. */
+/** Link preview: "Help Matt soundtrack his NYC Marathon" on the cobalt sleeve, with progress. */
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
   await connection();
   const s = await registrySummary((await params).id);
@@ -28,7 +28,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
             playlist pacer
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            <div style={{ fontSize: 100, fontWeight: 800, lineHeight: 0.95, letterSpacing: -3 }}>{`Help ${name} soundtrack 26.2`}</div>
+            <div style={{ fontSize: 84, fontWeight: 800, lineHeight: 0.95, letterSpacing: -3 }}>{`Help ${name} soundtrack his NYC Marathon`}</div>
             <div style={{ fontSize: 38, fontWeight: 500, color: "#FBE6E9" }}>Drop a song on a mile of the NYC Marathon.</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 20, fontSize: 28, fontWeight: 500 }}>

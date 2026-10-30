@@ -3,7 +3,7 @@ import { addViaApi, createRace, dragSongTo, expect, marker, openMap, song, test,
 test("a friend drags a song onto a mile", async ({ page, request }) => {
   const race = await createRace(request);
   await page.goto(`/r/${race.id}`);
-  await expect(page.getByRole("heading", { name: "Help Matt soundtrack 26.2" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Help Matt soundtrack his NYC Marathon" })).toBeVisible();
   const intro = page.getByRole("dialog", { name: "How it works" });
   await expect(intro.getByText("Drag it onto a mile")).toBeVisible();
   // Each step has a little animation.
@@ -131,10 +131,16 @@ test("the map updates live as other people add songs", async ({ page, request })
 });
 
 test("the welcome popup can't be skipped without a name", async ({ page, request }) => {
-  const race = await createRace(request);
+  const race = await createRace(request, "Matt Lebel", { bib: "13302" });
+  await addViaApi(request, race.id, { mile: 7, name: "Sarah", song: song("Toxic", "Britney Spears") });
   await page.goto(`/r/${race.id}`);
   const intro = page.getByRole("dialog", { name: "How it works" });
   await expect(intro).toBeVisible();
+  // Whose race this is, and a peek at the live feed, so it's clear why you're here.
+  await expect(intro.getByLabel("Bib 13302, Matt, Wave 1").last()).toBeVisible();
+  await expect(intro.getByText("Add songs to Matt's NYC Marathon playlist.")).toBeVisible();
+  await expect(intro.getByText("Live feed – see what others are adding")).toBeVisible();
+  await expect(intro.getByText(/Sarah added “Toxic” to mile 7/)).toBeVisible();
   await expect(intro.getByRole("button", { name: "Close" })).toHaveCount(0);
   await page.keyboard.press("Escape");
   await page.mouse.click(10, 10);
@@ -253,8 +259,38 @@ test("songs from Spotify can be previewed in the mile popup", async ({ page, req
   const sheet = page.getByRole("dialog", { name: "Mile 16 · First Avenue" });
   await sheet.getByRole("button", { name: "Preview Dog Days Are Over" }).click();
   await expect(sheet.locator("iframe")).toHaveAttribute("src", /open\.spotify\.com\/embed\/track\/d{22}/);
-  await sheet.getByRole("button", { name: "Hide preview of Dog Days Are Over" }).click();
+  await sheet.getByRole("button", { name: "Stop preview of Dog Days Are Over" }).click();
   await expect(sheet.locator("iframe")).toHaveCount(0);
+});
+
+test("our ▶ starts Spotify's player by itself, so it's one tap", async ({ page, request }) => {
+  const race = await createRace(request);
+  await addViaApi(request, race.id, { mile: 16, name: "Mom", song: song("Dog Days Are Over", "Florence + The Machine", "d") });
+  // A stand-in for Spotify's iFrame API that records play() calls.
+  await page.route("https://open.spotify.com/embed/iframe-api/**", (route) =>
+    route.fulfill({
+      contentType: "text/javascript",
+      body: `window.__played = [];
+        window.onSpotifyIframeApiReady({
+          createController(el, opts, cb) {
+            const f = document.createElement("iframe");
+            f.dataset.uri = opts.uri;
+            el.replaceWith(f);
+            cb({
+              addListener(ev, fn) { if (ev === "ready") setTimeout(fn, 50); },
+              play() { window.__played.push(opts.uri); },
+              destroy() { f.remove(); },
+            });
+          },
+        });`,
+    }),
+  );
+  await openMap(page, race.id);
+  await marker(page, 16).click();
+  const sheet = page.getByRole("dialog", { name: "Mile 16 · First Avenue" });
+  await sheet.getByRole("button", { name: "Preview Dog Days Are Over" }).click();
+  await expect(sheet.getByTitle("Preview Dog Days Are Over on Spotify")).toHaveAttribute("data-uri", `spotify:track:${"d".repeat(22)}`);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __played: string[] }).__played)).toEqual([`spotify:track:${"d".repeat(22)}`]);
 });
 
 test("Undo takes a song back off the course and puts it back in your hand", async ({ page, request }) => {
@@ -370,7 +406,6 @@ test("resting on a search result opens Spotify's preview player for it", async (
   await expect(player).toHaveAttribute("src", /open\.spotify\.com\/embed\/track\//);
   await expect(page.getByText("Preview · Mr. Brightside")).toBeVisible();
   // ▶ with no clip to play directly falls back to Spotify's player, right under the song; tapping again closes it.
-  await page.route("**/api/songs/preview**", (route) => route.fulfill({ json: { url: null } }));
   await page.getByRole("button", { name: "Preview Mr. Brightside - Remastered" }).click();
   await expect(page.getByText("Preview · Mr. Brightside - Remastered")).toBeVisible();
   await page.getByRole("button", { name: "Preview Mr. Brightside - Remastered" }).click();
