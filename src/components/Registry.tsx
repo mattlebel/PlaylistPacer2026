@@ -10,6 +10,7 @@ import { confetti } from "@/lib/confetti";
 import { COURSE_NOTES, COURSE_NOTES_CREDIT } from "@/lib/courseNotes";
 import { etaAtMile, finishEta, fmtPace, fmtTimeOfDay, MILES, mileByN, mileLabel, RACE, startHhmm, waveLabel } from "@/lib/race";
 import { songKey } from "@/lib/songKey";
+import { cheer, cowbell, setSoundOn, soundOn } from "@/lib/sounds";
 import { spotifyTrackUrl } from "@/lib/spotify";
 import type { Song } from "@/lib/types";
 import { SpotifyIcon } from "./brand";
@@ -62,6 +63,7 @@ export function Registry() {
   const prevCounts = useRef<Map<number, number> | null>(null);
   const [name, setName] = useState("");
   const [mine, setMine] = useState<Record<string, string>>({});
+  const [sound, setSound] = useState(true);
   const [busy, setBusy] = useState(false);
   const mapRef = useRef<HTMLDivElement>(null);
   const courseMap = useRef<CourseMapHandle>(null);
@@ -87,6 +89,7 @@ export function Registry() {
     const saved = store.get("pp.name") ?? "";
     setName(saved);
     setMine(editKeys());
+    setSound(soundOn());
     // The welcome popup also asks for your name, so show it until we have one.
     if (!store.get("pp.howto") || !saved.trim()) setHowto(true);
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -158,6 +161,8 @@ export function Registry() {
       setMine(editKeys());
       setHeld(null);
       navigator.vibrate?.(35); // a little buzz on phones that support it (Android)
+      cowbell(2);
+      cheer(0.25);
       const target = document.querySelector(`.maplibregl-marker [data-drop-mile="${mile}"]`)?.getBoundingClientRect();
       if (from && target?.width && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         setFlight({ song, from, to: { x: target.left + target.width / 2, y: target.top + target.height / 2 }, key: res.id });
@@ -268,6 +273,18 @@ export function Registry() {
           <button className="underline underline-offset-4 hover:text-chalk" onClick={() => setHowto(true)}>
             How it works
           </button>
+          <button
+            className="underline underline-offset-4 hover:text-chalk"
+            aria-pressed={sound}
+            title="Cowbells and cheers when you add a song"
+            onClick={() => {
+              setSoundOn(!sound);
+              setSound(!sound);
+              if (!sound) cowbell(1);
+            }}
+          >
+            {sound ? "🔔 Sound on" : "🔕 Sound off"}
+          </button>
         </div>
         <Activity recent={data.recent} runner={runner} offset={offset} />
       </section>
@@ -373,7 +390,9 @@ export function Registry() {
           className="mt-6 border-t border-pink/15 pt-5"
           onSubmit={(e) => {
             e.preventDefault();
-            if (name.trim()) closeHowto();
+            if (!name.trim()) return;
+            cowbell(1);
+            closeHowto();
           }}
         >
           <label htmlFor="welcome-name" className="font-display text-xl font-bold">

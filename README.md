@@ -34,6 +34,10 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
 - **In each mile's popup:** songs already there (with a Spotify preview player), when the runner
   passes, the coach's notes, and a search box to add one. Search results grey out songs that are
   already on the course.
+- **Sounds:** a quiet cowbell "clonk-clonk" and a short crowd cheer after adding a song, a single
+  cowbell on "Let's go", and a cheer when the runner saves the playlist. They're generated in the
+  browser (`src/lib/sounds.ts`, no audio files), respect the iPhone silent switch, don't interrupt
+  music, and "Sound on/off" next to "How it works" turns them off (remembered per device).
 - **After adding:** the song flies from your finger into its marker (with a short buzz on Android
   phones), and the message has **Share** (a ready-made message with the link) and **Undo** (takes it
   back off the course and puts it back in your hand).

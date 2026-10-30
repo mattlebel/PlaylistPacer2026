@@ -7,6 +7,7 @@ import { api, ApiError, type Manage } from "@/lib/client/api";
 import { manageKeyFor } from "@/lib/client/keys";
 import { etaAtMile, finishEta, fmtPace, fmtTimeOfDay, mileByN, mileLabel, RACE, startHhmm, waveLabel } from "@/lib/race";
 import { RaceDetailsFields, useRaceDetails } from "./RaceDetails";
+import { cheer } from "@/lib/sounds";
 import { savePlaylist, spotifyConfigured, spotifyConnected, spotifyTrackUrl, startSpotifyLogin } from "@/lib/spotify";
 import { SpotifyIcon } from "./brand";
 import { ChipStack } from "./ChipStack";
@@ -261,6 +262,7 @@ function Playlist({ data, name, manageKey }: { data: Manage; name: string; manag
       );
       setLink(res.url);
       setUpdated(res.updated);
+      cheer();
       // Remember it, so the next save updates this playlist instead of making another.
       if (res.id !== data.playlistId) {
         await api(`/api/races/${data.id}/manage`, {

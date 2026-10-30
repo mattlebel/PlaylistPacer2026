@@ -280,6 +280,34 @@ test("phones keep the map files, so repeat visits load the map instantly", async
   expect(meta.headers()["cache-control"]).toBe("public, max-age=86400, stale-while-revalidate=604800");
 });
 
+test("adding a song plays a cowbell and a little cheer, and Sound off keeps it quiet", async ({ page, request }) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as { sounds: string[] };
+    w.sounds = [];
+    window.addEventListener("pp:sound", (e) => w.sounds.push((e as CustomEvent<string>).detail));
+  });
+  const heard = () => page.evaluate(() => (window as unknown as { sounds: string[] }).sounds);
+  const race = await createRace(request);
+  await openMap(page, race.id);
+  expect(await heard()).toEqual(["cowbell"]); // "Let's go"
+
+  await typeSong(page, "Juice", "Lizzo");
+  await dragSongTo(page, 9);
+  await expect(page.getByRole("status")).toContainText("Added to Mile 9");
+  expect(await heard()).toEqual(["cowbell", "cowbell", "cheer"]);
+
+  await page.getByRole("button", { name: "🔔 Sound on" }).click();
+  await expect(page.getByRole("button", { name: "🔕 Sound off" })).toHaveAttribute("aria-pressed", "false");
+  await typeSong(page, "Toxic", "Britney Spears");
+  await dragSongTo(page, 10);
+  await expect(page.getByRole("status")).toContainText("Added to Mile 10");
+  expect(await heard()).toEqual(["cowbell", "cowbell", "cheer"]);
+
+  // Remembered on this device.
+  await page.reload();
+  await expect(page.getByRole("button", { name: "🔕 Sound off" })).toBeVisible();
+});
+
 test("link previews are personalized", async ({ request }) => {
   const race = await createRace(request, "Priya Patel");
   await addViaApi(request, race.id, { mile: 1, song: song("Run the World", "Beyoncé") });
