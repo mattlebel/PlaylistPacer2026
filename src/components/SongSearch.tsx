@@ -39,6 +39,14 @@ export function SongSearch({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [active, setActive] = useState(0);
+  // Spotify's preview player for one result: opens after resting on a result for half a second, or on ▶.
+  const [preview, setPreview] = useState<Song | null>(null);
+  const hover = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopHover = () => {
+    if (hover.current) clearTimeout(hover.current);
+    hover.current = null;
+  };
+  useEffect(() => stopHover, []);
   const seq = useRef(0);
 
   useEffect(() => {
@@ -76,6 +84,8 @@ export function SongSearch({
   const takenAt = (s: Song) => taken?.get(songKey(s));
 
   const pick = (s: Song) => {
+    stopHover();
+    setPreview(null);
     seq.current++;
     setQ("");
     setRemote([]);
@@ -131,7 +141,14 @@ export function SongSearch({
           {options.map((s, i) => {
             const on = takenAt(s);
             return (
-              <li key={`${s.spotifyId ?? s.title}-${s.artist}`} className={`flex items-center gap-3 rounded-xl px-2 py-1.5 ${on !== undefined ? "opacity-50" : i === current ? "bg-ink/35" : "hover:bg-ink/25"}`}>
+              <li
+                key={`${s.spotifyId ?? s.title}-${s.artist}`}
+                onMouseEnter={() => {
+                  stopHover();
+                  if (s.spotifyId) hover.current = setTimeout(() => setPreview(s), 500);
+                }}
+                onMouseLeave={stopHover}
+                className={`flex items-center gap-3 rounded-xl px-2 py-1.5 ${on !== undefined ? "opacity-50" : i === current ? "bg-ink/35" : "hover:bg-ink/25"}`}>
                 <button
                   type="button"
                   id={`${listId}-${i}`}
@@ -159,6 +176,19 @@ export function SongSearch({
                   </span>
                 </button>
                 {s.spotifyId && (
+                  <button
+                    type="button"
+                    className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border text-[11px] ${
+                      preview?.spotifyId === s.spotifyId ? "border-chalk bg-chalk text-ink" : "border-pink/30 hover:border-pink"
+                    }`}
+                    aria-label={`Preview ${s.title}`}
+                    aria-pressed={preview?.spotifyId === s.spotifyId}
+                    onClick={() => setPreview(preview?.spotifyId === s.spotifyId ? null : s)}
+                  >
+                    ▶
+                  </button>
+                )}
+                {s.spotifyId && (
                   <a href={spotifyTrackUrl(s.spotifyId)} target="_blank" rel="noreferrer" className="shrink-0 p-1 text-pink/70 hover:text-chalk" aria-label={`Play ${s.title} on Spotify`}>
                     <SpotifyIcon size={18} />
                   </a>
@@ -167,6 +197,19 @@ export function SongSearch({
             );
           })}
         </ul>
+      )}
+      {preview?.spotifyId && options.some((o) => o.spotifyId === preview.spotifyId) && (
+        <div className="mt-3">
+          <div className="label mb-1.5">Preview · {preview.title}</div>
+          <iframe
+            key={preview.spotifyId}
+            title={`Preview ${preview.title} on Spotify`}
+            src={`https://open.spotify.com/embed/track/${preview.spotifyId}?utm_source=generator&theme=0`}
+            className="h-20 w-full rounded-xl border-0"
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            loading="lazy"
+          />
+        </div>
       )}
     </div>
   );

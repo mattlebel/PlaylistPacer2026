@@ -21,11 +21,16 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
     Push against an edge to pan. After the drop it zooms back out to the whole course.
   - You can also pick a mile from a dropdown, or tap a mile and add a song from its popup. Both work
     without dragging.
+  - Resting on a search result for half a second (or tapping ▶) opens Spotify's preview player for it.
+  - After adding, the panel says "Add another song" with your running count, suggests miles that
+    still need a song, and the cursor goes back to the search box. A progress bar shows how many of
+    the 81 spots are filled. On phones, "＋ Add another" in the message (or a floating button)
+    brings the search box back.
   - The welcome popup asks for your first name once; it shows on your songs as "from Sarah". To
     change it, reopen "How it works".
   - You can remove your own song from the same device.
 - **Live:** the map refreshes every few seconds, so everyone sees what's been picked and which miles
-  still have room. A line under the title shows the latest songs ("Sarah added “Juice” to mile 7 ·
+  still have room. A live feed beside the map (a single line under the title on phones) shows the latest songs ("Sarah added “Juice” to mile 7 ·
   2 min ago"), and each new song sends a glowing pulse along the course line to its mile, which
   then flashes.
 - **Race details:** the runner's wave start, pace per mile (default 11:00) and bib. Friends see when

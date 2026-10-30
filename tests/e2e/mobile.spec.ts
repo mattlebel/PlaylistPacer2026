@@ -14,6 +14,16 @@ test("friends can drag a song onto the map from a phone", async ({ page, request
   await dragSongTo(page, 16);
   await expect(page.getByRole("status")).toContainText("Added to Mile 16 · First Avenue");
   await expect(marker(page, 16)).toHaveAccessibleName("Mile 16, First Avenue: 1 of 3 songs");
+  // "Add another" in the message takes you straight back to the search box.
+  await page.getByRole("status").getByRole("button", { name: "＋ Add another" }).click();
+  await expect(page.getByRole("combobox", { name: "Search for a song" })).toBeFocused();
+  await expect(page.getByRole("combobox", { name: "Search for a song" })).toBeInViewport();
+
+  // Scrolled away from the search box, a floating button brings it back.
+  await page.getByRole("status").getByRole("button", { name: "＋ Add another" }).waitFor({ state: "detached", timeout: 12_000 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.getByRole("button", { name: "＋ Add another song" }).click();
+  await expect(page.getByRole("combobox", { name: "Search for a song" })).toBeInViewport();
 });
 
 test("home and setup fit a phone", async ({ page }) => {

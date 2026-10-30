@@ -51,7 +51,7 @@ test("race morning: adding closes at 6am, and the map stays up", async ({ page, 
   await welcome(page);
   await expect(page.getByRole("heading", { name: "Adding is closed" })).toBeVisible();
   await expect(page.getByLabel("Search for a song")).toHaveCount(0);
-  await expect(page.getByText("from Coach")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Live feed" }).getByText(/Coach added “Lose Yourself” to mile 13/)).toBeVisible();
 
   const res = await request.post(`/api/races/${race.id}/plants`, { data: { mile: 2, name: "Sam", song: song("Late", "X") } });
   expect(res.status()).toBe(403);

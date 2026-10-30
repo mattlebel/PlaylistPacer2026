@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -66,6 +66,9 @@ export function Registry() {
   const [sound, setSound] = useState(true);
   const [busy, setBusy] = useState(false);
   const mapRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  // Whether the "Add a song" panel is on screen. When it isn't (phones), a floating button brings it back.
+  const [panelVisible, setPanelVisible] = useState(true);
   const courseMap = useRef<CourseMapHandle>(null);
 
   const load = useCallback(async () => {
@@ -94,6 +97,15 @@ export function Registry() {
     if (!store.get("pp.howto") || !saved.trim()) setHowto(true);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [load]);
+
+  const loaded = !!data;
+  useEffect(() => {
+    const el = panelRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(([e]) => setPanelVisible(e.isIntersecting), { threshold: 0.15 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [loaded]);
 
   // Live map: pick up everyone else's songs while the page is open.
   useEffect(() => {
@@ -138,6 +150,12 @@ export function Registry() {
     }
   };
 
+  /** Brings the search box back into view and puts the cursor in it, ready for the next song. */
+  const toSearch = () => {
+    panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setTimeout(() => document.getElementById(SEARCH_ID)?.focus({ preventScroll: true }), 350);
+  };
+
   /** `from`: where the song was let go (a drag), so it can fly into the marker from there. */
   const add = async (mile: number, song: Song, from?: { x: number; y: number }) => {
     if (!data || busy) return false;
@@ -163,11 +181,14 @@ export function Registry() {
       navigator.vibrate?.(35); // a little buzz on phones that support it (Android)
       cowbell(2);
       cheer(0.25);
+      // Ready for the next one: on a computer, the cursor goes straight back to the search box.
+      if (window.matchMedia("(min-width: 1024px)").matches) document.getElementById(SEARCH_ID)?.focus({ preventScroll: true });
       const target = document.querySelector(`.maplibregl-marker [data-drop-mile="${mile}"]`)?.getBoundingClientRect();
       if (from && target?.width && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         setFlight({ song, from, to: { x: target.left + target.width / 2, y: target.top + target.height / 2 }, key: res.id });
       }
       say(`Added to ${mileLabel(mile)} · ${mileByN(mile)?.title}`, [
+        { label: "＋ Add another", onClick: () => (window.matchMedia("(min-width: 1024px)").matches ? document.getElementById(SEARCH_ID)?.focus() : toSearch()) },
         { label: "Share", onClick: () => share(song, mile) },
         { label: "Undo", onClick: () => undo(res.id, res.editKey, song) },
       ]);
@@ -233,6 +254,13 @@ export function Registry() {
 
   const runner = first(data.runnerName);
   const withRoom = data.miles.filter((m) => m.songs.length < data.perMile).length;
+  const capacity = MILES.length * data.perMile;
+  const myCount = data.miles.reduce((n, m) => n + m.songs.filter((e) => mine[e.id]).length, 0);
+  // Miles that most need a song: empty ones first (landmarks before the rest), then the emptiest with room.
+  const needs = data.miles
+    .filter((m) => m.songs.length < data.perMile)
+    .sort((a, b) => a.songs.length - b.songs.length || Number(!!mileByN(b.n)?.landmark) - Number(!!mileByN(a.n)?.landmark) || a.n - b.n)
+    .slice(0, 3);
   const openMile = open === null ? null : data.miles.find((m) => m.n === open)!;
 
   return (
@@ -247,14 +275,37 @@ export function Registry() {
         <p className="mt-4 text-lg leading-relaxed text-blush">
           {data.open ? (
             <>
-              Search for a song, drag it onto a mile, and {runner} hears it right there on race day. Each mile holds{" "}
-              {data.perMile} songs, first come, first served.
+              Search for a song, drag it onto a mile, and {runner} hears it right there on race day. Add as many as you like:
+              each mile holds {data.perMile}, first come, first served.
             </>
           ) : (
             <>Adding songs is closed. {runner} is heading to the start! Here&apos;s the soundtrack everyone built.</>
           )}
         </p>
         <RaceLine runner={runner} start={start} paceSec={data.paceSec} bib={data.bib} />
+        <div className="mt-5 max-w-xl">
+          <div className="flex items-baseline justify-between gap-3 text-sm">
+            <span className="font-semibold text-chalk">
+              {data.total} of {capacity} spots filled
+            </span>
+            {data.open && data.total < capacity && <span className="text-pink/70">{capacity - data.total} to go. Keep them coming!</span>}
+          </div>
+          <div
+            className="mt-2 h-2.5 overflow-hidden rounded-full bg-ink/40"
+            role="progressbar"
+            aria-label="Spots filled on the course"
+            aria-valuemin={0}
+            aria-valuemax={capacity}
+            aria-valuenow={data.total}
+          >
+            <motion.div
+              className="h-full rounded-full bg-gradient-to-r from-pink via-butter to-mint"
+              initial={false}
+              animate={{ width: `${Math.max(2, (data.total / capacity) * 100)}%` }}
+              transition={{ type: "spring", stiffness: 120, damping: 20 }}
+            />
+          </div>
+        </div>
         <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[11px]">
           <span className="flex items-center gap-2" title="This map updates on its own">
             <span className="relative flex h-2 w-2">
@@ -286,7 +337,9 @@ export function Registry() {
             {sound ? "🔔 Sound on" : "🔕 Sound off"}
           </button>
         </div>
-        <Activity recent={data.recent} runner={runner} offset={offset} />
+        <div className="lg:hidden">
+          <Activity recent={data.recent} runner={runner} offset={offset} />
+        </div>
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
@@ -303,12 +356,22 @@ export function Registry() {
           </div>
         </div>
 
-        <aside className="panel space-y-5 p-5 lg:order-1 lg:sticky lg:top-4 lg:self-start">
+        <div className="space-y-6 lg:order-1 lg:self-start">
+        <aside ref={panelRef} className="panel scroll-mt-4 space-y-5 p-5">
           {data.open ? (
             <>
               <div>
-                <h2 className="font-display text-2xl font-bold">Add a song</h2>
-                <p className="mt-1 text-sm text-blush">Pick one, then drag it onto the map.</p>
+                <h2 className="font-display text-2xl font-bold">{myCount ? "Add another song" : "Add a song"}</h2>
+                <p className="mt-1 text-sm text-blush">
+                  {myCount ? (
+                    <>
+                      You&apos;ve added <strong className="text-chalk">{myCount}</strong> {myCount === 1 ? "song" : "songs"}
+                      {myCount >= 3 ? " 🔥" : ""}. Keep them coming: add as many as you like.
+                    </>
+                  ) : (
+                    "Pick one, then drag it onto the map. Add as many as you like."
+                  )}
+                </p>
               </div>
               <SongSearch onPick={pickSong} inputId={SEARCH_ID} taken={taken} />
               {held && (
@@ -331,6 +394,30 @@ export function Registry() {
                   onDiscard={() => setHeld(null)}
                 />
               )}
+              {!held && needs.length > 0 && (
+                <div>
+                  <div className="label mb-2">{needs[0].songs.length === 0 ? "These miles still need a song" : "These miles have room"}</div>
+                  <ul className="space-y-1.5">
+                    {needs.map((m) => (
+                      <li key={m.n}>
+                        <button
+                          className="flex w-full items-center gap-3 rounded-xl bg-ink/20 px-3 py-2 text-left text-sm hover:bg-ink/35"
+                          onClick={() => setOpen(m.n)}
+                          aria-label={`Add a song to ${mileLabel(m.n)}, ${mileByN(m.n)?.title}`}
+                        >
+                          <ChipStack count={m.songs.length} max={data.perMile} size="sm" />
+                          <span className="min-w-0 flex-1 truncate">
+                            <span className="font-mono text-[10px] uppercase text-pink/70">{mileLabel(m.n)}</span>{" "}
+                            <span className="font-semibold">{mileByN(m.n)?.title}</span>
+                            {mileByN(m.n)?.landmark && <span className="text-butter"> ★</span>}
+                          </span>
+                          <span className="shrink-0 text-xs font-semibold text-chalk">+ Add</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </>
           ) : (
             <div>
@@ -339,17 +426,10 @@ export function Registry() {
             </div>
           )}
         </aside>
+        <Feed recent={data.recent} runner={runner} offset={offset} onOpen={setOpen} />
+        </div>
       </div>
 
-      <section>
-        <h2 className="mb-1 font-display text-3xl font-bold tracking-tight">Every mile</h2>
-        <p className="mb-5 text-blush">You can drop songs here too.</p>
-        <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="Miles along the course">
-          {data.miles.map((m) => (
-            <MileRow key={m.n} mile={m} eta={eta(m.n)} perMile={data.perMile} runner={runner} hot={hot === m.n} dragging={dragging} onOpen={() => setOpen(m.n)} />
-          ))}
-        </ol>
-      </section>
 
       {openMile && (
         <MileSheet
@@ -375,7 +455,7 @@ export function Registry() {
           {[
             ["Find a song", "Search for something that'll get them moving."],
             ["Drag it onto a mile", `Drop it on a marker on ${runner}'s course, like the Queensboro Bridge or mile 20 in the Bronx. Each mile holds ${data.perMile} songs.`],
-            [`${runner} hears it out there`, `Every song goes into ${runner}'s race-day playlist in course order. The map updates live, so you can see what everyone picked.`],
+            [`${runner} hears it out there`, `Every song goes into ${runner}'s race-day playlist in course order. Add as many as you like: there are ${capacity} spots to fill, and the map updates live.`],
           ].map(([t, d], i) => (
             <li key={t} className="flex gap-4">
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-pink font-display text-lg font-bold text-ink">{i + 1}</span>
@@ -417,6 +497,14 @@ export function Registry() {
       </Modal>
 
       <Toast message={toast} actions={toastActions} onDone={() => say(null)} />
+      {data.open && !held && !panelVisible && !open && !howto && !toast && (
+        <button
+          className="btn fixed bottom-24 right-4 z-40 bg-pink px-5 py-3 text-sm shadow-[0_14px_30px_rgb(8_10_40/0.5)] lg:hidden"
+          onClick={toSearch}
+        >
+          ＋ {myCount ? "Add another song" : "Add a song"}
+        </button>
+      )}
       {flight &&
         createPortal(
           <motion.div
@@ -597,57 +685,6 @@ function ChipFace({ song, small = false }: { song: Song; small?: boolean }) {
 }
 
 /* ---------- miles ---------- */
-
-const fromLine = (songs: Entry[], runner: string) => {
-  const names = songs.map((s) => (s.isRunner ? runner : (s.from ?? "a friend")));
-  return names.length ? `from ${[...new Set(names)].join(", ")}` : "";
-};
-
-function MileRow({
-  mile,
-  eta,
-  perMile,
-  runner,
-  hot,
-  dragging,
-  onOpen,
-}: {
-  mile: MileData;
-  eta: string;
-  perMile: number;
-  runner: string;
-  hot: boolean;
-  dragging: boolean;
-  onOpen(): void;
-}) {
-  const info = mileByN(mile.n)!;
-  const full = mile.songs.length >= perMile;
-  return (
-    <li className="min-w-0">
-      <button
-        type="button"
-        data-drop-mile={mile.n}
-        onClick={onOpen}
-        aria-label={`${mileLabel(mile.n)}, ${info.title}: ${mile.songs.length} of ${perMile} songs`}
-        className={`flex w-full items-center gap-4 rounded-2xl p-4 text-left transition ${
-          hot ? "scale-[1.02] bg-ink/50 ring-2 ring-butter" : full ? "bg-ink/10" : "bg-ink/20 hover:bg-ink/30"
-        } ${dragging && full && !hot ? "opacity-40" : ""}`}
-      >
-        <ChipStack count={mile.songs.length} max={perMile} />
-        <span className="min-w-0 flex-1">
-          <span className="flex items-baseline gap-2">
-            <span className="font-mono text-[10px] uppercase text-pink/70">{mileLabel(mile.n)}</span>
-            {info.landmark && <span className="text-[10px] text-butter">★</span>}
-            {full && <span className="font-mono text-[10px] uppercase text-chalk">full</span>}
-            <span className="ml-auto font-mono text-[10px] text-pink/60">~{eta}</span>
-          </span>
-          <span className="block truncate font-display text-lg font-bold">{info.title}</span>
-          <span className="block truncate text-sm text-pink/70">{fromLine(mile.songs, runner) || info.note}</span>
-        </span>
-      </button>
-    </li>
-  );
-}
 
 function MileSheet({
   mile,
@@ -867,5 +904,40 @@ function Activity({ recent, runner, offset }: { recent: RegistryData["recent"]; 
       <strong className="font-semibold text-chalk">{who}</strong> added “{r.title}” to {r.mile === 0 ? "the start" : `mile ${r.mile}`}
       <span className="text-pink/60"> · {ago(now - new Date(r.at).getTime())}</span>
     </p>
+  );
+}
+
+/** Desktop: the latest songs in a card beside the map. New ones slide in; click one to open its mile. */
+function Feed({ recent, runner, offset, onOpen }: { recent: RegistryData["recent"]; runner: string; offset: number; onOpen(n: number): void }) {
+  const now = useServerNow(offset);
+  return (
+    <section className="panel hidden p-5 lg:block" aria-label="Live feed">
+      <div className="label mb-3 flex items-center gap-2">
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-mint opacity-60" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-mint" />
+        </span>
+        Live feed
+      </div>
+      {recent.length === 0 ? (
+        <p className="text-sm text-pink/60">No songs yet. Be the first!</p>
+      ) : (
+        <ol className="space-y-1">
+          <AnimatePresence initial={false}>
+            {recent.map((r) => (
+              <motion.li key={r.id} layout initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+                <button className="w-full rounded-xl px-2 py-1.5 text-left text-sm leading-snug hover:bg-ink/25" onClick={() => onOpen(r.mile)}>
+                  <span className="line-clamp-2">
+                    <strong className="font-semibold text-chalk">{r.from ?? (r.isRunner ? runner : "Someone")}</strong> added “{r.title}” to{" "}
+                    {r.mile === 0 ? "the start" : `mile ${r.mile}`}
+                  </span>
+                  {now !== null && <span className="block font-mono text-[10px] text-pink/50">{ago(now - new Date(r.at).getTime())}</span>}
+                </button>
+              </motion.li>
+            ))}
+          </AnimatePresence>
+        </ol>
+      )}
+    </section>
   );
 }

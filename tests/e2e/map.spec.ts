@@ -88,7 +88,7 @@ test("you can pick a mile without dragging", async ({ page, request }) => {
   await expect(page.getByRole("status")).toContainText("Added to Mile 8 · Barclays & the Bank Tower");
 
   // Or tap a mile and add straight from its popup.
-  await page.getByRole("list", { name: "Miles along the course" }).getByRole("button", { name: /^Mile 20, The Bronx/ }).click();
+  await marker(page, 20).click();
   const sheet = page.getByRole("dialog", { name: "Mile 20 · The Bronx" });
   await typeSong(sheet, "Can't Hold Us", "Macklemore");
   await expect(page.getByRole("status")).toContainText("Added to Mile 20 · The Bronx");
@@ -123,7 +123,7 @@ test("the map updates live as other people add songs", async ({ page, request })
   await expect(marker(page, 26)).toHaveAccessibleName("Mile 26, The finish: 0 of 3 songs");
   await addViaApi(request, race.id, { mile: 26, name: "Mom", song: song("Don't Stop Me Now", "Queen") });
   await expect(marker(page, 26)).toHaveAccessibleName("Mile 26, The finish: 1 of 3 songs", { timeout: 15_000 });
-  await expect(page.getByText("from Mom")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Live feed" }).getByText(/Mom added “Don't Stop Me Now” to mile 26/)).toBeVisible();
 });
 
 test("skipping the name in the welcome popup brings it back when you add a song", async ({ page, request }) => {
@@ -139,7 +139,7 @@ test("skipping the name in the welcome popup brings it back when you add a song"
   await intro.getByRole("button", { name: "Let's go" }).click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("Added to Mile 9 · Bed-Stuy");
-  await expect(page.getByText("from Jules")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Live feed" }).getByText(/Jules added “Juice” to mile 9/)).toBeVisible();
 });
 
 test("pausing mid-drag zooms the map in, and it zooms back out after the drop", async ({ page, request }) => {
@@ -183,17 +183,19 @@ test("friends see when Matt passes each mile, his bib, and when adding closes", 
   await expect(page.getByRole("link", { name: "Track Matt live · bib 13302" })).toHaveAttribute("href", "https://liveresults.nyrr.org");
   // The fake server clock says Oct 20, noon (EDT): 11 days and 19 hours before 6am EST on race day.
   await expect(page.getByText(/^Adding closes in 11 days, 1[89] hrs$/)).toBeVisible();
-  const row = page.getByRole("list", { name: "Miles along the course" }).getByRole("button", { name: /^Mile 15, Queensboro Bridge/ });
-  await expect(row).toContainText("~11:55 AM");
-  await row.click();
+  await marker(page, 15).click();
   await expect(page.getByRole("dialog", { name: "Mile 15 · Queensboro Bridge" }).getByText("Matt passes here around 11:55 AM")).toBeVisible();
 });
 
-test("a live line shows the latest songs, and search greys out songs already on the course", async ({ page, request }) => {
+test("a live feed beside the map shows the latest songs, and search greys out songs already on the course", async ({ page, request }) => {
   const race = await createRace(request);
   await addViaApi(request, race.id, { mile: 15, name: "Sarah Connor", song: song("Mr. Brightside", "The Killers") });
   await openMap(page, race.id);
-  await expect(page.getByText(/Sarah added “Mr\. Brightside” to mile 15/)).toBeVisible();
+  const feed = page.getByRole("region", { name: "Live feed" });
+  await expect(feed.getByText(/Sarah added “Mr\. Brightside” to mile 15/)).toBeVisible();
+  await feed.getByRole("button", { name: /Sarah added/ }).click();
+  await expect(page.getByRole("dialog", { name: "Mile 15 · Queensboro Bridge" })).toBeVisible();
+  await page.keyboard.press("Escape");
 
   // Both versions count as the same song, so both are greyed out.
   await page.getByRole("combobox", { name: "Search for a song" }).fill("brightside");
@@ -306,6 +308,46 @@ test("adding a song plays a cowbell and a little cheer, and Sound off keeps it q
   // Remembered on this device.
   await page.reload();
   await expect(page.getByRole("button", { name: "🔕 Sound off" })).toBeVisible();
+});
+
+test("after adding, it's clear you can keep going", async ({ page, request }) => {
+  const race = await createRace(request);
+  await openMap(page, race.id);
+  await expect(page.getByText("0 of 81 spots filled")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Add a song" })).toBeVisible();
+  // The miles that still need a song, landmarks first.
+  const needs = page.getByRole("button", { name: /^Add a song to / });
+  await expect(needs).toHaveCount(3);
+  await expect(needs.first()).toHaveAccessibleName("Add a song to Start, The start");
+
+  await typeSong(page, "Juice", "Lizzo");
+  await dragSongTo(page, 0);
+  await expect(page.getByRole("status")).toContainText("Added to Start");
+  await expect(page.getByRole("heading", { name: "Add another song" })).toBeVisible();
+  await expect(page.getByText(/You've added 1 song\. Keep them coming/)).toBeVisible();
+  await expect(page.getByText("1 of 81 spots filled")).toBeVisible();
+  await expect(page.getByText("80 to go. Keep them coming!")).toBeVisible();
+  // Ready for the next one.
+  await expect(page.getByRole("combobox", { name: "Search for a song" })).toBeFocused();
+  // A suggested mile opens its popup, with search right there.
+  await needs.first().click();
+  await expect(page.getByRole("dialog", { name: "Mile 1 · Top of the Verrazzano" })).toBeVisible();
+});
+
+test("resting on a search result opens Spotify's preview player for it", async ({ page, request }) => {
+  const race = await createRace(request);
+  await openMap(page, race.id);
+  await page.getByRole("combobox", { name: "Search for a song" }).fill("brightside");
+  const results = page.getByRole("listbox", { name: "Search results" }).getByRole("option");
+  await results.first().hover();
+  const player = page.getByTitle(/^Preview Mr\. Brightside on Spotify$/);
+  await expect(player).toHaveAttribute("src", /open\.spotify\.com\/embed\/track\//);
+  await expect(page.getByText("Preview · Mr. Brightside")).toBeVisible();
+  // Or tap ▶ (phones have no hover); tapping again closes it.
+  await page.getByRole("button", { name: "Preview Mr. Brightside - Remastered" }).click();
+  await expect(page.getByText("Preview · Mr. Brightside - Remastered")).toBeVisible();
+  await page.getByRole("button", { name: "Preview Mr. Brightside - Remastered" }).click();
+  await expect(page.getByText(/^Preview · /)).toHaveCount(0);
 });
 
 test("link previews are personalized", async ({ request }) => {

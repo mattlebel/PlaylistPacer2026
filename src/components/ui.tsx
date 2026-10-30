@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 export function Modal({
   open,
@@ -149,11 +149,17 @@ export function Toast({
   actions?: { label: string; onClick(): void }[] | null;
 }) {
   const has = !!actions?.length;
+  // Keep the latest onDone in a ref: pages re-render often (live updates), and restarting the timer on
+  // every render would keep the message up forever.
+  const done = useRef(onDone);
+  useEffect(() => {
+    done.current = onDone;
+  }, [onDone]);
   useEffect(() => {
     if (!message) return;
-    const id = setTimeout(onDone, has ? 9000 : 4200);
+    const id = setTimeout(() => done.current(), has ? 9000 : 4200);
     return () => clearTimeout(id);
-  }, [message, onDone, has]);
+  }, [message, has]);
   return (
     <AnimatePresence>
       {message && (

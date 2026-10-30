@@ -101,12 +101,15 @@ describe("the live map", () => {
 
   it("lists the latest songs for the activity line, newest first, and the server's time", async () => {
     const r = await newRace();
-    for (const [i, t] of ["One", "Two", "Three", "Four", "Five", "Six"].entries()) {
+    for (const [i, t] of ["One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"].entries()) {
       await add(r.id, i, t, `Friend${i} Lastname`);
       await db.query("update plants set created_at = now() + ($1 || ' seconds')::interval where title = $2", [String(i), t]);
     }
     const reg = await getRegistry(db, r.id, BEFORE);
     expect(reg.recent.map((x) => [x.title, x.from, x.mile])).toEqual([
+      ["Nine", "Friend8", 8],
+      ["Eight", "Friend7", 7],
+      ["Seven", "Friend6", 6],
       ["Six", "Friend5", 5],
       ["Five", "Friend4", 4],
       ["Four", "Friend3", 3],

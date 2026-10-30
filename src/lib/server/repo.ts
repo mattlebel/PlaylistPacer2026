@@ -160,7 +160,7 @@ export async function getRegistry(db: Db, raceId: string, now = new Date()) {
   const plants = await loadPlants(db, raceId);
   const recent = [...plants]
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 5)
+    .slice(0, 8)
     .map((p) => ({
       id: p.id,
       mile: p.mile,
