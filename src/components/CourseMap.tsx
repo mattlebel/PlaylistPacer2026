@@ -140,14 +140,24 @@ function placeCards(map: MLMap): { mode: Mode; offsets: Offset[] } {
 
 const PADDING = { top: 64, bottom: 48, left: 48, right: 48 };
 
-/** Drag helpers: pause over the map and it zooms in toward you; push against an edge and it pans. */
-const DWELL_MS = 380;
-const NEXT_STEP_MS = 1100;
-const ZOOM_STEP = 1;
+/**
+ * Drag helpers: pause over the map and it glides in toward you; push against an edge and it drifts
+ * that way. Both run in one animation loop with eased speeds, so nothing jumps.
+ */
+const DWELL_MS = 320;
+/** Zoom speed while you hold still, in zoom levels per second. */
+const ZOOM_RATE = 1.1;
 /** How far in a drag can zoom, past the whole-course view: enough to separate the miles, not lose them. */
 const MAX_DRAG_ZOOM_IN = 2;
-const EDGE_PX = 44;
-const EDGE_SPEED = 9;
+/** Moving more than this (px) counts as moving on, so the zoom eases off. */
+const STILL_PX = 14;
+const EDGE_PX = 56;
+/** Fastest edge pan, in px per second, right at the edge. */
+const EDGE_RATE = 520;
+/** How quickly speeds catch up with where they're heading (per second); higher is snappier. */
+const EASE = 7;
+/** Markers re-arrange this long after the map stops moving. */
+const RELAYOUT_MS = 160;
 
 export interface CourseMapHandle {
   /** The song being dragged is at this point on screen (client coordinates). */
@@ -224,39 +234,81 @@ export function CourseMap({
     if (map.current) setLayout(placeCards(map.current));
   }, []);
 
-  // While a song is dragged over the map: zoom toward where it pauses, pan at the edges.
+  // While a song is dragged over the map: glide in toward where it pauses, drift at the edges.
   const drag = useRef({
+    live: false,
+    /** True while the loop itself is moving the map (so its zoom events don't re-arrange markers). */
+    stepping: false,
+    pointer: null as { x: number; y: number } | null,
     anchor: null as { x: number; y: number } | null,
-    timer: 0 as ReturnType<typeof setTimeout> | 0,
+    stillSince: 0,
+    zoomVel: 0,
+    panVel: { x: 0, y: 0 },
+    last: 0,
     raf: 0,
-    edge: { dx: 0, dy: 0 },
     baseZoom: null as number | null,
     settle: 0 as ReturnType<typeof setTimeout> | 0,
+    relayout: 0 as ReturnType<typeof setTimeout> | 0,
   });
 
   useImperativeHandle(ref, () => {
     const st = drag.current;
     const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const stopEdge = () => {
-      if (st.raf) cancelAnimationFrame(st.raf);
+    // Re-arrange the marker cards once the map is at rest, not on every frame.
+    const relayoutSoon = () => {
+      if (st.relayout) clearTimeout(st.relayout);
+      st.relayout = setTimeout(() => {
+        st.relayout = 0;
+        if (map.current) setLayout(placeCards(map.current));
+      }, RELAYOUT_MS);
+    };
+    const tick = (t: number) => {
       st.raf = 0;
-    };
-    const panLoop = () => {
-      const m = map.current;
-      if (!m || (!st.edge.dx && !st.edge.dy)) return stopEdge();
-      m.panBy([st.edge.dx * EDGE_SPEED, st.edge.dy * EDGE_SPEED], { duration: 0 });
-      st.raf = requestAnimationFrame(panLoop);
-    };
-    const zoomAt = (x: number, y: number) => {
       const m = map.current;
       if (!m) return;
-      const z = m.getZoom();
-      const target = Math.min(z + ZOOM_STEP, (st.baseZoom ?? z) + MAX_DRAG_ZOOM_IN);
-      if (target - z < 0.2) return;
+      const dt = st.last ? Math.min(0.05, (t - st.last) / 1000) : 1 / 60;
+      st.last = t;
+      const p = st.pointer;
       const r = m.getContainer().getBoundingClientRect();
-      m.easeTo({ zoom: target, around: m.unproject([x - r.left, y - r.top]), duration: reduced() ? 0 : 450 });
-      // Still hovering here a bit later? Zoom in another step.
-      st.timer = setTimeout(() => zoomAt(x, y), NEXT_STEP_MS);
+      const base = st.baseZoom ?? m.getZoom();
+      const z = m.getZoom();
+      const maxZ = base + MAX_DRAG_ZOOM_IN;
+
+      // Zoom: speeds up while you hold still, slows as it nears the limit, eases off when you move.
+      const still = st.live && p && performance.now() - st.stillSince > DWELL_MS;
+      const left = maxZ - z;
+      const zoomTarget = still && !reduced() && left > 0.01 ? ZOOM_RATE * Math.min(1, 0.25 + left / 0.5) : 0;
+      st.zoomVel += (zoomTarget - st.zoomVel) * Math.min(1, dt * EASE);
+      if (st.zoomVel < 0.02 || left <= 0.01) st.zoomVel = 0;
+
+      // Pan: only once zoomed in, faster the closer you are to the edge.
+      let vx = 0;
+      let vy = 0;
+      if (st.live && p && z > base + 0.3) {
+        const depth = (d: number) => Math.max(0, 1 - d / EDGE_PX) ** 2;
+        vx = (depth(p.x - r.left) * -1 + depth(r.right - p.x)) * EDGE_RATE;
+        vy = (depth(p.y - r.top) * -1 + depth(r.bottom - p.y)) * EDGE_RATE;
+      }
+      st.panVel.x += (vx - st.panVel.x) * Math.min(1, dt * EASE);
+      st.panVel.y += (vy - st.panVel.y) * Math.min(1, dt * EASE);
+      if (Math.abs(st.panVel.x) < 2) st.panVel.x = 0;
+      if (Math.abs(st.panVel.y) < 2) st.panVel.y = 0;
+
+      const moving = st.zoomVel > 0 || st.panVel.x || st.panVel.y;
+      st.stepping = true;
+      if (st.zoomVel > 0 && p) {
+        const around = m.unproject([p.x - r.left, p.y - r.top]);
+        m.easeTo({ zoom: Math.min(maxZ, z + st.zoomVel * dt), around, duration: 0 });
+      }
+      if (st.panVel.x || st.panVel.y) m.panBy([st.panVel.x * dt, st.panVel.y * dt], { duration: 0 });
+      st.stepping = false;
+      // Cards keep their places while you drag (no shuffling under the pointer); they re-arrange after.
+      if (moving && !st.live) relayoutSoon();
+      if (st.live || moving) st.raf = requestAnimationFrame(tick);
+      else st.last = 0;
+    };
+    const run = () => {
+      if (!st.raf) st.raf = requestAnimationFrame(tick);
     };
     return {
       dragAt(x, y) {
@@ -267,34 +319,29 @@ export function CourseMap({
         st.baseZoom ??= m.getZoom();
         const r = m.getContainer().getBoundingClientRect();
         const inside = x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
-        if (!inside) {
-          if (st.timer) clearTimeout(st.timer);
-          st.anchor = null;
-          st.edge = { dx: 0, dy: 0 };
-          return stopEdge();
-        }
-        // Only pan once zoomed in; at the overview the whole course is already on screen.
-        const zoomedIn = m.getZoom() > st.baseZoom + 0.3;
-        st.edge = zoomedIn
-          ? { dx: x < r.left + EDGE_PX ? -1 : x > r.right - EDGE_PX ? 1 : 0, dy: y < r.top + EDGE_PX ? -1 : y > r.bottom - EDGE_PX ? 1 : 0 }
-          : { dx: 0, dy: 0 };
-        if ((st.edge.dx || st.edge.dy) && !st.raf) st.raf = requestAnimationFrame(panLoop);
-        if (!st.anchor || Math.hypot(x - st.anchor.x, y - st.anchor.y) > 14) {
+        st.live = inside;
+        st.pointer = inside ? { x, y } : null;
+        if (!inside) st.anchor = null;
+        else if (!st.anchor || Math.hypot(x - st.anchor.x, y - st.anchor.y) > STILL_PX) {
           st.anchor = { x, y };
-          if (st.timer) clearTimeout(st.timer);
-          st.timer = setTimeout(() => zoomAt(x, y), DWELL_MS);
+          st.stillSince = performance.now();
         }
+        run();
       },
       dragEnd() {
-        if (st.timer) clearTimeout(st.timer);
-        stopEdge();
+        st.live = false;
+        st.pointer = null;
         st.anchor = null;
-        st.edge = { dx: 0, dy: 0 };
         const m = map.current;
         const zoomed = m && st.baseZoom !== null && m.getZoom() > st.baseZoom + 0.3;
         st.baseZoom = null;
-        // Give the drop a moment to land, then show the whole course again.
-        if (m && zoomed) st.settle = setTimeout(() => m.fitBounds(bounds(raceCourse()), { padding: PADDING, duration: reduced() ? 0 : 800 }), 900);
+        // Give the drop a moment to land, then glide back out to the whole course.
+        if (m && zoomed)
+          st.settle = setTimeout(() => {
+            st.zoomVel = 0;
+            st.panVel = { x: 0, y: 0 };
+            m.fitBounds(bounds(raceCourse()), { padding: PADDING, duration: reduced() ? 0 : 1100, easing: (k) => 1 - (1 - k) ** 3 });
+          }, 700);
       },
     };
   }, []);
@@ -302,8 +349,8 @@ export function CourseMap({
   useEffect(() => {
     const st = drag.current;
     return () => {
-      if (st.timer) clearTimeout(st.timer);
       if (st.settle) clearTimeout(st.settle);
+      if (st.relayout) clearTimeout(st.relayout);
       if (st.raf) cancelAnimationFrame(st.raf);
     };
   }, []);
@@ -409,7 +456,10 @@ export function CourseMap({
         setWraps(els);
         setLayout(placeCards(m));
       });
-      m.on("zoomend", () => setLayout(placeCards(m)));
+      // During a drag the loop above re-arranges the markers once things settle.
+      m.on("zoomend", () => {
+        if (!drag.current.stepping && !drag.current.live) setLayout(placeCards(m));
+      });
       m.on("resize", () => setLayout(placeCards(m)));
       map.current = m;
     });

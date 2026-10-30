@@ -19,8 +19,9 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
   - Type in one search box and pick a suggestion, and it becomes a bubble you drag onto a marker.
     Suggestions come from Spotify when it's set up (searches are cached on the server for a few hours),
     or otherwise from a built-in list of about 375 popular running songs (`src/lib/popularSongs.ts`). Pause while
-    dragging and the map zooms in toward the bubble (up to two steps) so crowded miles spread out.
-    Push against an edge to pan. After the drop it zooms back out to the whole course.
+    dragging and the map glides in toward the bubble (up to two zoom levels) so crowded miles spread
+    out; the markers hold still until you let go. Push toward an edge to drift that way (faster
+    the closer you get). After the drop it glides back out to the whole course.
   - You can also pick a mile from a dropdown, or tap a mile and add a song from its popup. Both work
     without dragging.
   - Tapping ▶ on a search result plays its 30-second preview clip right away (found on the song's

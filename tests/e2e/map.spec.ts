@@ -222,7 +222,7 @@ test("pausing mid-drag zooms the map in, and it zooms back out after the drop", 
   for (let i = 1; i <= 12; i++) await page.mouse.move(from.x + ((near.x - from.x) * i) / 12, from.y + ((near.y - from.y) * i) / 12);
   // Hold still over the map: it zooms in toward the pointer, spreading the miles apart.
   await expect.poll(gap, { timeout: 5000 }).toBeGreaterThan(before * 1.8);
-  // Keep holding: it zooms one more step, then stops so the miles stay findable.
+  // Keep holding: it keeps gliding in, then stops so the miles stay findable.
   await expect.poll(gap, { timeout: 5000 }).toBeGreaterThan(before * 3.5);
   await page.waitForTimeout(1500);
   expect(await gap()).toBeLessThan(before * 4.5);
