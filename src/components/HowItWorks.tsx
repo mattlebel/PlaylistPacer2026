@@ -28,7 +28,7 @@ function useReducedMotion() {
 
 function Frame({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <svg viewBox="0 0 160 100" className="h-[84px] w-[134px] shrink-0 rounded-xl" role="img" aria-label={label}>
+    <svg viewBox="0 0 160 100" className="h-[60px] w-[96px] shrink-0 rounded-xl sm:h-[84px] sm:w-[134px]" role="img" aria-label={label}>
       <rect width="160" height="100" rx="12" fill={PANEL} />
       {children}
     </svg>
@@ -42,8 +42,8 @@ export function FindASong() {
     <Frame label="Typing a song into the search box and picking a result">
       <defs>
         <clipPath id="hiw-typed">
-          <rect x="34" y="18" height="18" width={still ? 70 : 0}>
-            {!still && <animate attributeName="width" dur={DUR} repeatCount="indefinite" values="0;0;70;70" keyTimes="0;0.08;0.4;1" />}
+          <rect x="34" y="18" height="18" width={still ? 60 : 0}>
+            {!still && <animate attributeName="width" dur={DUR} repeatCount="indefinite" values="0;0;60;60" keyTimes="0;0.08;0.4;1" />}
           </rect>
         </clipPath>
       </defs>
@@ -51,11 +51,11 @@ export function FindASong() {
       <circle cx="24" cy="26" r="4" fill="none" stroke={PINK} strokeWidth="1.5" />
       <path d="M27 29l3 3" stroke={PINK} strokeWidth="1.5" strokeLinecap="round" />
       <text x="34" y="30.5" fontSize="10" fontFamily="ui-monospace, monospace" fill={PINK} clipPath="url(#hiw-typed)">
-        brightside
+        Killeagh
       </text>
       {!still && (
         <rect y="20" width="1.5" height="12" fill={PINK}>
-          <animate attributeName="x" dur={DUR} repeatCount="indefinite" values="34;34;104;104" keyTimes="0;0.08;0.4;1" />
+          <animate attributeName="x" dur={DUR} repeatCount="indefinite" values="34;34;92;92" keyTimes="0;0.08;0.4;1" />
           <animate attributeName="opacity" dur="0.8s" repeatCount="indefinite" values="1;1;0;0" keyTimes="0;0.5;0.5;1" />
         </rect>
       )}

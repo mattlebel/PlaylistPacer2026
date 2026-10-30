@@ -14,10 +14,10 @@ export function Bib({
   name: string;
   wave?: string;
   start?: string;
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
   className?: string;
 }) {
-  const s = { sm: { w: 220, num: 54 }, md: { w: 300, num: 76 }, lg: { w: 420, num: 112 } }[size];
+  const s = { xs: { w: 132, num: 32 }, sm: { w: 220, num: 54 }, md: { w: 300, num: 76 }, lg: { w: 420, num: 112 } }[size];
   return (
     <figure
       className={`relative select-none overflow-hidden rounded-[10px] bg-[#f7f5ef] text-ink shadow-[0_18px_40px_rgb(8_10_40/0.45)] ${className}`}

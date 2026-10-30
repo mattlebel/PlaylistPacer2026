@@ -10,6 +10,7 @@ export function Modal({
   children,
   accent = "var(--color-pink)",
   wide = false,
+  dismissable = true,
 }: {
   open: boolean;
   onClose(): void;
@@ -17,13 +18,15 @@ export function Modal({
   children: ReactNode;
   accent?: string;
   wide?: boolean;
+  /** false: no ✕, and Escape or a tap outside doesn't close it (the popup needs an answer first). */
+  dismissable?: boolean;
 }) {
   useEffect(() => {
-    if (!open) return;
+    if (!open || !dismissable) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, onClose, dismissable]);
 
   return (
     <AnimatePresence>
@@ -33,7 +36,7 @@ export function Modal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+          onMouseDown={(e) => dismissable && e.target === e.currentTarget && onClose()}
         >
           <motion.div
             role="dialog"
@@ -46,15 +49,17 @@ export function Modal({
             exit={{ y: 40, opacity: 0 }}
             transition={{ type: "spring", stiffness: 380, damping: 28 }}
           >
-            <div className="mb-5 flex items-start justify-between gap-4">
+            <div className="mb-4 flex min-h-10 items-center justify-between gap-4 sm:mb-5">
               <h2 className="font-display text-2xl font-bold leading-none tracking-tight sm:text-3xl">{title}</h2>
-              <button
-                onClick={onClose}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-pink/30 text-lg transition hover:border-pink"
-                aria-label="Close"
-              >
-                ✕
-              </button>
+              {dismissable && (
+                <button
+                  onClick={onClose}
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-pink/30 text-lg transition hover:border-pink"
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              )}
             </div>
             {children}
           </motion.div>
@@ -145,7 +150,7 @@ export function Toast({
 }: {
   message: string | null;
   onDone(): void;
-  /** Optional buttons, e.g. "Share" and "Undo". The toast stays up longer when there are some. */
+  /** Optional buttons, e.g. "Share" and "Undo". */
   actions?: { label: string; onClick(): void }[] | null;
 }) {
   const has = !!actions?.length;
@@ -157,7 +162,7 @@ export function Toast({
   }, [onDone]);
   useEffect(() => {
     if (!message) return;
-    const id = setTimeout(() => done.current(), has ? 9000 : 4200);
+    const id = setTimeout(() => done.current(), has ? 4500 : 4200);
     return () => clearTimeout(id);
   }, [message, has]);
   return (

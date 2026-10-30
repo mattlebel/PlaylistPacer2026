@@ -23,13 +23,19 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
     Push against an edge to pan. After the drop it zooms back out to the whole course.
   - You can also pick a mile from a dropdown, or tap a mile and add a song from its popup. Both work
     without dragging.
-  - Resting on a search result for half a second (or tapping ▶) opens Spotify's preview player for it.
-  - After adding, the panel says "Add another song" with your running count, suggests miles that
-    still need a song, and the cursor goes back to the search box. A progress bar shows how many of
-    the 81 spots are filled. On phones, "＋ Add another" in the message (or a floating button)
-    brings the search box back.
-  - The welcome popup asks for your first name once; it shows on your songs as "from Sarah". To
-    change it, reopen "How it works".
+  - Tapping ▶ on a search result plays its 30-second preview clip right away (found on the song's
+    public Spotify page, or Apple's iTunes search as a backup: `src/lib/server/songPreview.ts`).
+    With a mouse, resting on a result for half a second opens Spotify's preview player; it's also
+    the fallback when no clip turns up.
+  - After adding, the panel says "Add another song" with your running count and the cursor goes
+    back to the search box. Once 15 or fewer spots are left, it suggests miles that still have room.
+    A progress bar shows how many of the 81 spots are filled.
+  - On phones, once the search box scrolls away, a search bar floats at the bottom of the screen
+    and opens search over the whole screen, so you never leave the map. Two other placements can
+    be tried with `?add=dock` (progress + button at the bottom) or `?add=bar` (search bar pinned
+    to the top); both scroll back to the search box.
+  - The welcome popup asks for your first name, and can't be closed until you give one; it shows
+    on your songs as "from Sarah". To change it, reopen "How it works".
   - You can remove your own song from the same device.
 - **Live:** the map refreshes every few seconds, so everyone sees what's been picked and which miles
   still have room. A live feed beside the map (a single line under the title on phones) shows the latest songs ("Sarah added “Juice” to mile 7 ·

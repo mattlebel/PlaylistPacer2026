@@ -130,17 +130,26 @@ test("the map updates live as other people add songs", async ({ page, request })
   await expect(page.getByRole("region", { name: "Live feed" }).getByText(/Mom added “Don't Stop Me Now” to the finish/)).toBeVisible();
 });
 
-test("skipping the name in the welcome popup brings it back when you add a song", async ({ page, request }) => {
+test("the welcome popup can't be skipped without a name", async ({ page, request }) => {
   const race = await createRace(request);
   await page.goto(`/r/${race.id}`);
-  await page.getByRole("dialog", { name: "How it works" }).getByRole("button", { name: "Close" }).click();
-  await typeSong(page, "Juice", "Lizzo");
-  await page.getByLabel("Or choose a mile").selectOption({ label: "Mile 9 · Bed-Stuy (3 left)" });
-  await page.getByRole("button", { name: "Add", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Add your name first, so Matt knows who picked it.");
   const intro = page.getByRole("dialog", { name: "How it works" });
+  await expect(intro).toBeVisible();
+  await expect(intro.getByRole("button", { name: "Close" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await page.mouse.click(10, 10);
+  await expect(intro).toBeVisible();
+  // The name box is on screen without scrolling.
+  await expect(intro.getByLabel("First, what's your name?")).toBeInViewport();
   await intro.getByLabel("First, what's your name?").fill("Jules");
   await intro.getByRole("button", { name: "Let's go" }).click();
+  await expect(intro).toHaveCount(0);
+  // Opened again later, it can be closed.
+  await page.getByRole("button", { name: "How it works" }).click();
+  await intro.getByRole("button", { name: "Close" }).click();
+  await expect(intro).toHaveCount(0);
+  await typeSong(page, "Juice", "Lizzo");
+  await page.getByLabel("Or choose a mile").selectOption({ label: "Mile 9 · Bed-Stuy (3 left)" });
   await page.getByRole("button", { name: "Add", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("Added to Mile 9 · Bed-Stuy");
   await expect(page.getByRole("region", { name: "Live feed" }).getByText(/Jules added “Juice” to mile 9/)).toBeVisible();
@@ -319,10 +328,9 @@ test("after adding, it's clear you can keep going", async ({ page, request }) =>
   await openMap(page, race.id);
   await expect(page.getByText("0 of 81 spots filled")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Add a song" })).toBeVisible();
-  // The miles that still need a song, landmarks first.
+  // Suggested miles only show once the course is nearly full.
   const needs = page.getByRole("button", { name: /^Add a song to / });
-  await expect(needs).toHaveCount(3);
-  await expect(needs.first()).toHaveAccessibleName("Add a song to Start, Staten Island");
+  await expect(needs).toHaveCount(0);
 
   await typeSong(page, "Juice", "Lizzo");
   await dragSongTo(page, 0);
@@ -333,8 +341,22 @@ test("after adding, it's clear you can keep going", async ({ page, request }) =>
   await expect(page.getByText("80 to go. Keep them coming!")).toBeVisible();
   // Ready for the next one.
   await expect(page.getByRole("combobox", { name: "Search for a song" })).toBeFocused();
+
+  // With 15 spots left, the miles that still have room show up, emptiest and landmarks first.
+  const miles = Array.from({ length: 26 }, (_, i) => i + 1);
+  for (let i = 0, n = 0; n < 65; i++) {
+    const mile = miles[i % miles.length];
+    if (mile === 1 && i >= 26) continue; // leave room on mile 1
+    await addViaApi(request, race.id, { mile, song: song(`Filler ${i}`, "The Testers") });
+    n++;
+  }
+  await expect(page.getByText("66 of 81 spots filled")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("These miles have room")).toBeVisible();
+  await expect(needs).toHaveCount(3);
+  await expect(needs.nth(0)).toHaveAccessibleName("Add a song to Start, Staten Island");
+  await expect(needs.nth(1)).toHaveAccessibleName("Add a song to Mile 1, Top of the Verrazzano");
   // A suggested mile opens its popup, with search right there.
-  await needs.first().click();
+  await needs.nth(1).click();
   await expect(page.getByRole("dialog", { name: "Mile 1 · Top of the Verrazzano" })).toBeVisible();
 });
 
@@ -347,11 +369,49 @@ test("resting on a search result opens Spotify's preview player for it", async (
   const player = page.getByTitle(/^Preview Mr\. Brightside on Spotify$/);
   await expect(player).toHaveAttribute("src", /open\.spotify\.com\/embed\/track\//);
   await expect(page.getByText("Preview · Mr. Brightside")).toBeVisible();
-  // Or tap ▶ (phones have no hover); tapping again closes it.
+  // ▶ with no clip to play directly falls back to Spotify's player, right under the song; tapping again closes it.
+  await page.route("**/api/songs/preview**", (route) => route.fulfill({ json: { url: null } }));
   await page.getByRole("button", { name: "Preview Mr. Brightside - Remastered" }).click();
   await expect(page.getByText("Preview · Mr. Brightside - Remastered")).toBeVisible();
   await page.getByRole("button", { name: "Preview Mr. Brightside - Remastered" }).click();
   await expect(page.getByText(/^Preview · /)).toHaveCount(0);
+});
+
+test("▶ on a search result plays the song's preview clip straight away", async ({ page, request }) => {
+  const race = await createRace(request);
+  // A one-second silent clip stands in for Spotify's 30-second preview.
+  const wav = Buffer.alloc(44 + 8000);
+  wav.write("RIFF", 0);
+  wav.writeUInt32LE(36 + 8000, 4);
+  wav.write("WAVEfmt ", 8);
+  wav.writeUInt32LE(16, 16);
+  wav.writeUInt16LE(1, 20);
+  wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(8000, 24);
+  wav.writeUInt32LE(8000, 28);
+  wav.writeUInt16LE(1, 32);
+  wav.writeUInt16LE(8, 34);
+  wav.write("data", 36);
+  wav.writeUInt32LE(8000, 40);
+  wav.fill(128, 44);
+  const asked: string[] = [];
+  await page.route("**/api/songs/preview**", (route) => {
+    asked.push(new URL(route.request().url()).searchParams.get("title") ?? "");
+    return route.fulfill({ json: { url: "/clip.wav" } });
+  });
+  await page.route("**/clip.wav", (route) => route.fulfill({ body: wav, contentType: "audio/wav" }));
+  await openMap(page, race.id);
+  await page.getByRole("combobox", { name: "Search for a song" }).fill("brightside");
+  const play = page.getByRole("button", { name: "Preview Mr. Brightside", exact: true });
+  await play.click();
+  await expect(play).toHaveAttribute("aria-pressed", "true");
+  await expect(play).toHaveText("❚❚");
+  expect(asked).toEqual(["Mr. Brightside"]);
+  // No Spotify player needed.
+  await expect(page.getByText(/^Preview · /)).toHaveCount(0);
+  // Tap again to stop.
+  await play.click();
+  await expect(play).toHaveAttribute("aria-pressed", "false");
 });
 
 test("the start and finish markers are flagged, and the live feed shows album art", async ({ page, request }) => {

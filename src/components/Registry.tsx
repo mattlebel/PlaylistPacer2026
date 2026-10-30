@@ -27,6 +27,9 @@ type Entry = MileData["songs"][number];
 const first = (n: string) => n.trim().split(/\s+/)[0];
 const POLL_MS = 8000;
 const SEARCH_ID = "song-search";
+const SHEET_SEARCH_ID = "sheet-search";
+/** Spots left on the course before "These miles have room" shows up. */
+const NEEDS_FROM = 15;
 
 const store = {
   get(k: string) {
@@ -54,6 +57,11 @@ export function Registry() {
   const [hot, setHot] = useState<number | null>(null);
   const [open, setOpen] = useState<number | null>(null);
   const [howto, setHowto] = useState(false);
+  // How phones get back to the search box once it's scrolled away (being tried out: ?add=sheet|dock|bar).
+  const [addUi, setAddUi] = useState<AddUi>("sheet");
+  const [sheet, setSheet] = useState(false);
+  const phone = usePhone();
+  const sheetRef = useRef<HTMLDivElement>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [toastActions, setToastActions] = useState<{ label: string; onClick(): void }[] | null>(null);
   // The song you just dropped, flying from your finger into its marker.
@@ -66,12 +74,10 @@ export function Registry() {
   const [name, setName] = useState("");
   const [mine, setMine] = useState<Record<string, string>>({});
   const [sound, setSound] = useState(true);
-  // Layout options for the top of the page, while we pick one: ?layout=a, b or c.
-  const [layout, setLayout] = useState("");
   const [busy, setBusy] = useState(false);
   const mapRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement>(null);
-  // Whether the "Add a song" panel is on screen. When it isn't (phones), a floating button brings it back.
+  // Whether the search box is on screen. When it isn't (phones), a floating button brings it back.
   const [panelVisible, setPanelVisible] = useState(true);
   const courseMap = useRef<CourseMapHandle>(null);
 
@@ -97,20 +103,22 @@ export function Registry() {
     setName(saved);
     setMine(editKeys());
     setSound(soundOn());
-    setLayout(new URLSearchParams(window.location.search).get("layout") ?? "");
+    const ui = new URLSearchParams(window.location.search).get("add");
+    if (ui === "dock" || ui === "bar" || ui === "sheet") setAddUi(ui);
     // The welcome popup also asks for your name, so show it until we have one.
     if (!store.get("pp.howto") || !saved.trim()) setHowto(true);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [load]);
 
-  const loaded = !!data;
+  // Watch the search box itself: once it's off screen, phones get a way back to it.
+  const searchShown = !!data?.open && data.total < MILES.length * data.perMile;
   useEffect(() => {
-    const el = panelRef.current;
+    const el = document.getElementById(SEARCH_ID);
     if (!el || typeof IntersectionObserver === "undefined") return;
-    const io = new IntersectionObserver(([e]) => setPanelVisible(e.isIntersecting), { threshold: 0.15 });
+    const io = new IntersectionObserver(([e]) => setPanelVisible(e.isIntersecting), { threshold: 0.5 });
     io.observe(el);
     return () => io.disconnect();
-  }, [loaded]);
+  }, [searchShown]);
 
   // Live map: pick up everyone else's songs while the page is open.
   useEffect(() => {
@@ -138,6 +146,8 @@ export function Registry() {
   };
 
   const closeHowto = () => {
+    // Friends must give a name before they start: it's how the runner knows who picked each song.
+    if (!store.get("pp.name")?.trim()) return;
     setHowto(false);
     store.set("pp.howto", "1");
     document.getElementById(SEARCH_ID)?.focus({ preventScroll: true });
@@ -157,8 +167,17 @@ export function Registry() {
 
   /** Brings the search box back into view and puts the cursor in it, ready for the next song. */
   const toSearch = () => {
+    // Focus inside the tap itself: iPhones only bring up the keyboard then.
+    document.getElementById(SEARCH_ID)?.focus({ preventScroll: true });
     panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    setTimeout(() => document.getElementById(SEARCH_ID)?.focus({ preventScroll: true }), 350);
+  };
+
+  /** Opens the full-screen search over the map, keyboard up. */
+  const openSheet = () => {
+    // The sheet is always on the page (just out of sight), so its box can take focus inside this tap.
+    if (sheetRef.current) sheetRef.current.inert = false;
+    document.getElementById(SHEET_SEARCH_ID)?.focus({ preventScroll: true });
+    setSheet(true);
   };
 
   /** `from`: where the song was let go (a drag), so it can fly into the marker from there. */
@@ -262,7 +281,9 @@ export function Registry() {
   const capacity = MILES.length * data.perMile;
   const myCount = data.miles.reduce((n, m) => n + m.songs.filter((e) => mine[e.id]).length, 0);
   // Miles that most need a song: empty ones first (landmarks before the rest), then the emptiest with room.
-  const needs = data.miles
+  // Only once the course is nearly full, when finding a mile with room gets hard.
+  const left = capacity - data.total;
+  const needs = (left > NEEDS_FROM ? [] : data.miles)
     .filter((m) => m.songs.length < data.perMile)
     .sort((a, b) => a.songs.length - b.songs.length || Number(!!mileByN(b.n)?.landmark) - Number(!!mileByN(a.n)?.landmark) || a.n - b.n)
     .slice(0, 3);
@@ -274,8 +295,11 @@ export function Registry() {
   );
   const intro = data.open ? (
     <>
-      Search for a song, drag it onto a mile, and {runner} hears it right there on race day. Add as many as you like: each mile
-      holds {data.perMile}, first come, first served.
+      Search for a song, drag it onto a mile, and {runner} hears it right there on race day.
+      <span className="hidden lg:inline">
+        {" "}
+        Add as many as you like: each mile holds {data.perMile}, first come, first served.
+      </span>
     </>
   ) : (
     <>Adding songs is closed. {runner} is heading to the start! Here&apos;s the soundtrack everyone built.</>
@@ -343,79 +367,41 @@ export function Registry() {
       <Activity recent={data.recent} runner={runner} offset={offset} />
     </div>
   );
-  const bib = (size: "sm" | "md" | "lg", className = "") =>
+  const bib = (size: "xs" | "sm" | "md" | "lg", className = "") =>
     data.bib ? (
       <Bib number={data.bib} name={runner} wave={waveLabel(startHhmm(start))} start={fmtTimeOfDay(start)} size={size} className={className} />
     ) : null;
   const raceLine = <RaceLine runner={runner} start={start} paceSec={data.paceSec} bib={data.bib} />;
 
-  const hero =
-    layout === "a" ? (
-      // A: compact header, bib card on the right
-      <section className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="space-y-3">
-          {label}
-          <h1 className="font-display text-[clamp(2rem,4vw,3rem)] font-extrabold leading-[1] tracking-tight">Help {runner} soundtrack 26.2</h1>
-          <p className="max-w-2xl leading-relaxed text-blush">{intro}</p>
-          {raceLine}
-          {progress}
-          {stats}
-          {ticker}
-        </div>
-        <div className="hidden lg:block">{bib("sm", "rotate-[3deg]")}</div>
-      </section>
-    ) : layout === "b" ? (
-      // B: map first, a slim title row; the bib and race details move into the left column
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
-          <div>
-            {label}
-            <h1 className="mt-1 font-display text-3xl font-extrabold tracking-tight">Help {runner} soundtrack 26.2</h1>
-          </div>
-          <div className="w-full max-w-md">{progress}</div>
-        </div>
-        <p className="max-w-3xl text-sm text-blush">{intro}</p>
-        {stats}
-        {ticker}
-        <div className="lg:hidden">{raceLine}</div>
-      </section>
-    ) : layout === "c" ? (
-      // C: the bib is the hero
-      <section className="grid items-center gap-8 lg:grid-cols-[auto_minmax(0,1fr)] lg:gap-12">
-        <div className="flex justify-center">{bib("md", "-rotate-[3deg]")}</div>
-        <div className="space-y-4">
-          {label}
-          <h1 className="font-display text-[clamp(2.2rem,4.5vw,3.5rem)] font-extrabold leading-[0.98] tracking-tight [text-wrap:balance]">
+  // The bib is the hero, kept small so the song search sits high on the page.
+  const hero = (
+    <section className="grid items-center gap-x-10 gap-y-4 lg:grid-cols-[auto_minmax(0,1fr)]">
+      <div className="hidden lg:block">{bib("sm", "-rotate-[3deg]")}</div>
+      <div className="space-y-3">
+        {label}
+        <div className="flex items-center gap-4">
+          <div className="shrink-0 lg:hidden">{bib("xs", "-rotate-[3deg]")}</div>
+          <h1 className="font-display text-[clamp(1.9rem,3.6vw,2.9rem)] font-extrabold leading-[1] tracking-tight [text-wrap:balance]">
             Help {runner} soundtrack 26.2
           </h1>
-          <p className="max-w-xl leading-relaxed text-blush">{intro}</p>
-          {raceLine}
-          {progress}
-          {stats}
-          {ticker}
         </div>
-      </section>
-    ) : (
-      <section className="max-w-3xl">
-        {label}
-        <h1 className="mt-2 font-display text-[clamp(2.4rem,6vw,4.5rem)] font-extrabold leading-[0.95] tracking-tight [text-wrap:balance]">
-          Help {runner} soundtrack 26.2
-        </h1>
-        <p className="mt-4 text-lg leading-relaxed text-blush">{intro}</p>
-        {raceLine}
-        <div className="mt-5">{progress}</div>
-        <div className="mt-4">{stats}</div>
+        <p className="max-w-2xl text-[13px] leading-snug text-blush lg:text-[15px] lg:leading-relaxed">{intro}</p>
+        <div className="hidden lg:block">{raceLine}</div>
+        {progress}
+        {stats}
         {ticker}
-      </section>
-    );
+      </div>
+    </section>
+  );
 
 
   return (
-    <div className="space-y-8 pt-2">
+    // Room at the bottom on phones for the floating "Add a song" bar.
+    <div className="space-y-8 pb-20 pt-2 lg:pb-0">
       {hero}
 
       <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
-        <div ref={mapRef} className="panel scroll-mt-2 overflow-hidden lg:order-2">
+        <div ref={mapRef} className="panel order-2 scroll-mt-2 overflow-hidden">
           <CourseMap ref={courseMap} charge={charge} markers={markers} perMile={data.perMile} dragging={dragging} onSelect={setOpen} className="h-[60dvh] min-h-[380px] lg:h-[700px]" />
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 font-mono text-[10px] uppercase text-pink/80">
             <span className="flex items-center gap-2">
@@ -428,15 +414,17 @@ export function Registry() {
           </div>
         </div>
 
-        <div className="space-y-6 lg:order-1 lg:self-start">
-        {layout === "b" && (
-          <div className="panel hidden space-y-4 p-5 lg:block">
-            <div className="flex justify-center">{bib("sm", "rotate-[2deg]")}</div>
-            {raceLine}
-          </div>
-        )}
+        <div className="order-1 space-y-6 lg:self-start">
         <aside ref={panelRef} className="panel scroll-mt-4 space-y-5 p-5">
-          {data.open ? (
+          {data.open && data.total >= capacity ? (
+            <div>
+              <h2 className="font-display text-2xl font-bold">Every spot is taken 🎉</h2>
+              <p className="mt-1 text-sm text-blush">
+                All {capacity} spots on {runner}&apos;s course have a song. Tap any mile to see what&apos;s there
+                {myCount ? `, including your ${myCount} ${myCount === 1 ? "pick" : "picks"}` : ""}.
+              </p>
+            </div>
+          ) : data.open ? (
             <>
               <div>
                 <h2 className="font-display text-2xl font-bold">{myCount ? "Add another song" : "Add a song"}</h2>
@@ -528,29 +516,29 @@ export function Registry() {
         />
       )}
 
-      <Modal open={howto} onClose={closeHowto} title="How it works">
-        <ol className="space-y-4">
+      <Modal open={howto} onClose={closeHowto} title="How it works" dismissable={!!name.trim()}>
+        <ol className="space-y-3 sm:space-y-4">
           {(
             [
-              ["Find a song", "Search for something that'll get them moving.", <FindASong key="1" />],
-              ["Drag it onto a mile", `Drop it on a marker on ${runner}'s course, like the Queensboro Bridge or mile 20 in the Bronx. Each mile holds ${data.perMile} songs.`, <DragOntoAMile key="2" />],
-              [`${runner} hears it out there`, `Every song goes into ${runner}'s race-day playlist in course order. Add as many as you like: there are ${capacity} spots to fill.`, <HearItOutThere key="3" />],
+              ["Find a song", `One that'll get ${runner} moving.`, <FindASong key="1" />],
+              ["Drag it onto a mile", `Each mile holds ${data.perMile}. First come, first served.`, <DragOntoAMile key="2" />],
+              [`${runner} hears it out there`, "Right at that mile, on race day.", <HearItOutThere key="3" />],
             ] as const
           ).map(([t, d, art], i) => (
-            <li key={t} className="flex items-center gap-4">
+            <li key={t} className="flex items-center gap-3 sm:gap-4">
               {art}
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-pink font-display text-sm font-bold text-ink">{i + 1}</span>
-                  <span className="font-display text-xl font-bold leading-tight">{t}</span>
+                  <span className="font-display text-lg font-bold leading-tight sm:text-xl">{t}</span>
                 </div>
-                <p className="mt-1 text-sm leading-relaxed text-blush">{d}</p>
+                <p className="mt-0.5 text-sm leading-snug text-blush">{d}</p>
               </div>
             </li>
           ))}
         </ol>
         <form
-          className="mt-6 border-t border-pink/15 pt-5"
+          className="mt-4 border-t border-pink/15 pt-4 sm:mt-6 sm:pt-5"
           onSubmit={(e) => {
             e.preventDefault();
             if (!name.trim()) return;
@@ -561,7 +549,7 @@ export function Registry() {
           <label htmlFor="welcome-name" className="font-display text-xl font-bold">
             First, what&apos;s your name?
           </label>
-          <p className="mb-3 text-sm text-blush">It shows on the songs you add, like &ldquo;from Sarah&rdquo;.</p>
+          <p className="mb-3 text-sm text-blush">So {runner} knows who picked each song.</p>
           <div className="flex flex-col gap-3 sm:flex-row">
             <input
               id="welcome-name"
@@ -580,13 +568,20 @@ export function Registry() {
       </Modal>
 
       <Toast message={toast} actions={toastActions} onDone={() => say(null)} />
-      {data.open && !held && !panelVisible && !open && !howto && !toast && (
-        <button
-          className="btn fixed bottom-24 right-4 z-40 bg-pink px-5 py-3 text-sm shadow-[0_14px_30px_rgb(8_10_40/0.5)] lg:hidden"
-          onClick={toSearch}
-        >
-          ＋ {myCount ? "Add another song" : "Add a song"}
-        </button>
+      <AddSong
+        ui={addUi}
+        show={data.open && data.total < capacity && !held && !panelVisible && !open && !howto && !toast && !sheet}
+        label={myCount ? "Add another song" : "Add a song"}
+        left={capacity - data.total}
+        filled={data.total / capacity}
+        onClick={addUi === "sheet" ? openSheet : toSearch}
+      />
+      {addUi === "sheet" && phone && data.open && (
+        <SearchSheet ref={sheetRef} open={sheet} label={myCount ? "Add another song" : "Add a song"} taken={taken} onClose={() => setSheet(false)} onPick={(s) => {
+          setSheet(false);
+          (document.activeElement as HTMLElement | null)?.blur();
+          pickSong(s);
+        }} />
       )}
       {flight &&
         createPortal(
@@ -746,6 +741,117 @@ function HeldSong({
           document.body,
         )}
     </motion.div>
+  );
+}
+
+type AddUi = "sheet" | "dock" | "bar";
+
+/** True on phone-sized screens (where the map sits below the search box). */
+function usePhone() {
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const q = window.matchMedia("(max-width: 1023px)");
+    const set = () => setPhone(q.matches);
+    set();
+    q.addEventListener("change", set);
+    return () => q.removeEventListener("change", set);
+  }, []);
+  return phone;
+}
+
+/** Phones only: the way back to the search box once it has scrolled off screen. */
+function AddSong({ ui, show, label, left, filled, onClick }: { ui: AddUi; show: boolean; label: string; left: number; filled: number; onClick(): void }) {
+  const spots = `${left} ${left === 1 ? "spot" : "spots"} left`;
+  const short = `${left} left`;
+  return (
+    <AnimatePresence>
+      {show && (
+        <motion.div
+          key={ui}
+          initial={{ opacity: 0, y: ui === "bar" ? -24 : 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: ui === "bar" ? -24 : 24 }}
+          transition={{ type: "spring", stiffness: 420, damping: 34 }}
+          className={`fixed inset-x-0 z-40 px-3 lg:hidden ${ui === "bar" ? "top-0 pt-[max(0.5rem,env(safe-area-inset-top))]" : "bottom-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]"}`}
+        >
+          {ui === "dock" ? (
+            <div className="flex items-center gap-3 rounded-2xl bg-ink-2/95 p-2.5 pl-4 shadow-[0_-10px_40px_rgb(8_10_40/0.55)] ring-1 ring-pink/25 backdrop-blur">
+              <div className="min-w-0 flex-1">
+                <div className="font-mono text-[10px] uppercase text-pink/80">{spots}</div>
+                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink/50">
+                  <div className="h-full rounded-full bg-gradient-to-r from-pink via-butter to-mint" style={{ width: `${Math.max(3, filled * 100)}%` }} />
+                </div>
+              </div>
+              <button className="btn shrink-0 bg-pink px-5 py-3 text-sm" onClick={onClick}>
+                ＋ {label}
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onClick}
+              aria-label={label}
+              className={`flex w-full items-center gap-3 rounded-full bg-chalk py-2 pl-4 pr-2 text-left text-ink ring-2 ring-pink ${
+                ui === "bar" ? "shadow-[0_10px_30px_rgb(8_10_40/0.5)]" : "shadow-[0_-6px_30px_rgb(8_10_40/0.55)]"
+              }`}
+            >
+              <svg viewBox="0 0 20 20" className="h-5 w-5 shrink-0" aria-hidden>
+                <circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" strokeWidth="2" />
+                <path d="M13 13l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              <span className="min-w-0 flex-1 truncate text-[15px] text-ink/60">Search for a song…</span>
+              <span className="shrink-0 rounded-full bg-ink px-3 py-1.5 font-mono text-[10px] uppercase text-pink">{short}</span>
+            </button>
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+/** Phones: search over the whole screen, so you never leave the map to find a song. */
+function SearchSheet({
+  ref,
+  open,
+  label,
+  taken,
+  onPick,
+  onClose,
+}: {
+  ref: React.Ref<HTMLDivElement>;
+  open: boolean;
+  label: string;
+  taken: Map<string, number>;
+  onPick(s: Song): void;
+  onClose(): void;
+}) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+  return (
+    <div
+      ref={ref}
+      inert={!open}
+      role="dialog"
+      aria-modal
+      aria-label={label}
+      aria-hidden={!open}
+      className={`fixed inset-x-0 top-0 z-[60] flex h-[100dvh] flex-col bg-ink-2 px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] transition duration-300 ease-out lg:hidden ${
+        open ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-6 opacity-0"
+      }`}
+    >
+      <div className="mb-3 flex items-center justify-between gap-4">
+        <h2 className="font-display text-2xl font-bold">{label}</h2>
+        <button onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-pink/30 text-lg" aria-label="Close search">
+          ✕
+        </button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <SongSearch onPick={onPick} inputId={SHEET_SEARCH_ID} taken={taken} />
+      </div>
+    </div>
   );
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { searchSongs } from "@/lib/client/api";
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
+import { findPreview, searchSongs } from "@/lib/client/api";
 import { suggestSongs } from "@/lib/popularSongs";
 import { mileInSentence } from "@/lib/race";
 import { songKey } from "@/lib/songKey";
@@ -15,6 +15,12 @@ const searchAvailable = () =>
   (configuredCheck ??= searchSongs("")
     .then((r) => r.configured)
     .catch(() => true));
+
+// One shared player for preview clips. A header-only WAV "unlocks" it inside the tap itself, which
+// iPhones require before they'll play sound; the real clip loads a moment later.
+const SILENT = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+let player: HTMLAudioElement | null = null;
+const audioPlayer = () => (player ??= new Audio());
 
 /**
  * One box for finding a song. Results come from Spotify when it's set up, or from a built-in list
@@ -40,14 +46,64 @@ export function SongSearch({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [active, setActive] = useState(0);
-  // Spotify's preview player for one result: opens after resting on a result for half a second, or on ▶.
+  // Spotify's preview player for one result: opens after resting on a result for half a second (with
+  // a mouse), or when ▶ can't find a clip to play directly.
   const [preview, setPreview] = useState<Song | null>(null);
+  // The clip ▶ is playing (or loading) right now.
+  const [clip, setClip] = useState<{ id: string; loading: boolean } | null>(null);
+  const clipFor = useRef<string | null>(null);
   const hover = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stopHover = () => {
     if (hover.current) clearTimeout(hover.current);
     hover.current = null;
   };
-  useEffect(() => stopHover, []);
+  const stopClip = () => {
+    clipFor.current = null;
+    setClip(null);
+    player?.pause();
+  };
+  useEffect(
+    () => () => {
+      stopHover();
+      clipFor.current = null;
+      player?.pause();
+    },
+    [],
+  );
+
+  const playClip = async (s: Song) => {
+    const key = s.spotifyId ?? `${s.title}|${s.artist}`;
+    if (clipFor.current === key) return stopClip();
+    stopHover();
+    setPreview(null);
+    const a = audioPlayer();
+    // Inside the tap: start (silently) now, so the phone lets the real clip play once it arrives.
+    a.pause();
+    a.src = SILENT;
+    a.play().catch(() => {});
+    clipFor.current = key;
+    setClip({ id: key, loading: true });
+    const url = await findPreview(s)
+      .then((r) => r.url)
+      .catch(() => null);
+    if (clipFor.current !== key) return;
+    if (!url) {
+      // No clip found: show Spotify's own player right under the song instead.
+      stopClip();
+      setPreview(s);
+      return;
+    }
+    a.src = url;
+    a.onended = () => clipFor.current === key && stopClip();
+    try {
+      await a.play();
+      if (clipFor.current === key) setClip({ id: key, loading: false });
+    } catch {
+      if (clipFor.current !== key) return;
+      stopClip();
+      setPreview(s);
+    }
+  };
   const seq = useRef(0);
 
   useEffect(() => {
@@ -86,6 +142,7 @@ export function SongSearch({
 
   const pick = (s: Song) => {
     stopHover();
+    stopClip();
     setPreview(null);
     seq.current++;
     setQ("");
@@ -111,6 +168,7 @@ export function SongSearch({
         value={q}
         autoComplete="off"
         onChange={(e) => {
+          if (clipFor.current) stopClip();
           setQ(e.target.value);
           setActive(0);
           if (e.target.value.trim().length < 2) setRemote([]);
@@ -138,15 +196,19 @@ export function SongSearch({
         )}
       </div>
       {options.length > 0 && (
-        <ul id={listId} className="mt-2 max-h-72 space-y-1 overflow-y-auto pr-1" role="listbox" aria-label="Search results">
+        <ul id={listId} className="mt-2 max-h-80 space-y-1 overflow-y-auto pr-1" role="listbox" aria-label="Search results">
           {options.map((s, i) => {
             const on = takenAt(s);
+            const playing = !!s.spotifyId && clip?.id === s.spotifyId;
+            const showing = !!s.spotifyId && preview?.spotifyId === s.spotifyId;
             return (
+              <Fragment key={`${s.spotifyId ?? s.title}-${s.artist}`}>
               <li
-                key={`${s.spotifyId ?? s.title}-${s.artist}`}
                 onMouseEnter={() => {
                   stopHover();
-                  if (s.spotifyId) hover.current = setTimeout(() => setPreview(s), 500);
+                  // Phones fire this on tap too; hover previews are for a mouse only.
+                  if (s.spotifyId && !clip && window.matchMedia("(hover: hover) and (pointer: fine)").matches)
+                    hover.current = setTimeout(() => setPreview(s), 500);
                 }}
                 onMouseLeave={stopHover}
                 className={`flex items-center gap-3 rounded-xl px-2 py-1.5 ${on !== undefined ? "opacity-50" : i === current ? "bg-ink/35" : "hover:bg-ink/25"}`}>
@@ -179,14 +241,14 @@ export function SongSearch({
                 {s.spotifyId && (
                   <button
                     type="button"
-                    className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border text-[11px] ${
-                      preview?.spotifyId === s.spotifyId ? "border-chalk bg-chalk text-ink" : "border-pink/30 hover:border-pink"
+                    className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border text-[12px] ${
+                      playing || showing ? "border-chalk bg-chalk text-ink" : "border-pink/30 hover:border-pink"
                     }`}
                     aria-label={`Preview ${s.title}`}
-                    aria-pressed={preview?.spotifyId === s.spotifyId}
-                    onClick={() => setPreview(preview?.spotifyId === s.spotifyId ? null : s)}
+                    aria-pressed={playing || showing}
+                    onClick={() => (showing ? setPreview(null) : playClip(s))}
                   >
-                    ▶
+                    {clip?.id === s.spotifyId && clip.loading ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-ink border-t-transparent" /> : playing ? "❚❚" : "▶"}
                   </button>
                 )}
                 {s.spotifyId && (
@@ -195,22 +257,23 @@ export function SongSearch({
                   </a>
                 )}
               </li>
+              {showing && (
+                // Right under the song, so it's on screen on a phone.
+                <li role="presentation" className="px-1 pb-1" ref={(el) => el?.scrollIntoView({ block: "nearest" })}>
+                  <div className="label mb-1.5">Preview · {s.title}</div>
+                  <iframe
+                    title={`Preview ${s.title} on Spotify`}
+                    src={`https://open.spotify.com/embed/track/${s.spotifyId}?utm_source=generator&theme=0`}
+                    className="h-20 w-full rounded-xl border-0"
+                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                    loading="lazy"
+                  />
+                </li>
+              )}
+              </Fragment>
             );
           })}
         </ul>
-      )}
-      {preview?.spotifyId && options.some((o) => o.spotifyId === preview.spotifyId) && (
-        <div className="mt-3">
-          <div className="label mb-1.5">Preview · {preview.title}</div>
-          <iframe
-            key={preview.spotifyId}
-            title={`Preview ${preview.title} on Spotify`}
-            src={`https://open.spotify.com/embed/track/${preview.spotifyId}?utm_source=generator&theme=0`}
-            className="h-20 w-full rounded-xl border-0"
-            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-            loading="lazy"
-          />
-        </div>
       )}
     </div>
   );

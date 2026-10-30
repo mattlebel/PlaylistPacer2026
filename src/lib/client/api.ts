@@ -29,3 +29,8 @@ export interface SearchResponse {
 }
 
 export const searchSongs = (q: string) => api<SearchResponse>(`/api/songs/search?q=${encodeURIComponent(q)}`);
+
+export const findPreview = (s: Song) =>
+  api<{ url: string | null }>(
+    `/api/songs/preview?${new URLSearchParams({ ...(s.spotifyId ? { id: s.spotifyId } : {}), title: s.title, artist: s.artist })}`,
+  );
