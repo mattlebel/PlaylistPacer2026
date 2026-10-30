@@ -7,12 +7,26 @@ import { bounds, makePointLookup } from "@/lib/geo";
 import { MILES, mileLabel, RACE, raceCourse } from "@/lib/race";
 import { ChipStack } from "./ChipStack";
 
+/** CARTO's Dark Matter: a muted, grayscale street map. */
 const STYLE_URL = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+
+/** Grayscale land and water, drawn from the bundled borough outlines when the street map can't load. */
+const LAND = "#2b2d36";
+const WATER = "#17181f";
 const FALLBACK: StyleSpecification = {
   version: 8,
   sources: {},
-  layers: [{ id: "bg", type: "background", paint: { "background-color": "#16288C" } }],
+  layers: [{ id: "bg", type: "background", paint: { "background-color": WATER } }],
 };
+
+/** Borough names for the fallback map (the street map has its own labels). Placed clear of the course. */
+const BOROUGH_LABELS: [string, number, number][] = [
+  ["Staten Island", 40.618, -74.098],
+  ["Brooklyn", 40.645, -73.94],
+  ["Queens", 40.762, -73.902],
+  ["Manhattan", 40.748, -74.003],
+  ["The Bronx", 40.836, -73.884],
+];
 
 async function loadStyle(): Promise<StyleSpecification | string> {
   try {
@@ -291,7 +305,39 @@ export function CourseMap({
       });
       m.touchZoomRotate.disableRotation();
       m.addControl(new NavigationControl({ showCompass: false }), "top-right");
-      m.on("load", () => {
+      m.on("load", async () => {
+        // The five boroughs, under everything. With the street map loaded, its own land and water cover
+        // these; if its tiles don't arrive, the outlines still show where the course is.
+        const land = (await import("@/lib/courses/nyc-boroughs.json")).default as GeoJSON.FeatureCollection;
+        if (disposed) return;
+        const above = m.getStyle().layers[1]?.id;
+        m.addSource("land", { type: "geojson", data: land });
+        m.addLayer({ id: "land", type: "fill", source: "land", paint: { "fill-color": LAND } }, above);
+        m.addLayer({ id: "land-edge", type: "line", source: "land", paint: { "line-color": "#3a3d4a", "line-width": 0.8 } }, above);
+        if (style === FALLBACK) {
+          const labels = BOROUGH_LABELS.map(([name, lat, lon]) => {
+            const el = document.createElement("div");
+            el.className = "pointer-events-none whitespace-nowrap font-mono text-[9px] uppercase tracking-[0.18em] text-pink/35";
+            el.textContent = name;
+            new Marker({ element: el }).setLngLat([lon, lat]).addTo(m);
+            return el;
+          });
+          // Hide a name that would be cut off by the map's edge or sit under the zoom buttons.
+          const fit = () => {
+            const box = m.getContainer().getBoundingClientRect();
+            const ctrl = m.getContainer().querySelector(".maplibregl-ctrl-top-right")?.getBoundingClientRect();
+            for (const el of labels) {
+              el.style.visibility = "";
+              const r = el.getBoundingClientRect();
+              const inside = r.left >= box.left + 4 && r.right <= box.right - 4 && r.top >= box.top + 4 && r.bottom <= box.bottom - 4;
+              const underCtrl = ctrl && r.right > ctrl.left && r.left < ctrl.right && r.bottom > ctrl.top && r.top < ctrl.bottom;
+              el.style.visibility = inside && !underCtrl ? "" : "hidden";
+            }
+          };
+          m.on("moveend", fit);
+          m.on("resize", fit);
+          requestAnimationFrame(fit);
+        }
         m.addSource("course", {
           type: "geojson",
           lineMetrics: true, // lets the charge-up gradient run along the line

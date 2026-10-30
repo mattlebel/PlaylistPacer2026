@@ -30,7 +30,7 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
   then flashes.
 - **Race details:** the runner's wave start, pace per mile (default 11:00) and bib. Friends see when
   the runner passes each mile ("around 11:55 AM"), the expected finish, a "Track live" button
-  (results.nyrr.org, searched by bib), and a countdown to when adding closes.
+  (liveresults.nyrr.org, searched by bib), and a countdown to when adding closes.
 - **In each mile's popup:** songs already there (with a Spotify preview player), when the runner
   passes, the coach's notes, and a search box to add one. Search results grey out songs that are
   already on the course.
@@ -55,6 +55,10 @@ The miles and their landmark notes are in `src/lib/race.ts`. Each mile's popup a
 on that stretch of the course by coach Stuart Calderwood (`src/lib/courseNotes.ts`), credited in the
 popup and in the page footer. The NYC course comes from a real GPS
 track of the 2025 race, scaled to the certified 42,195 m and stored as positions plus elevation only.
+The map uses CARTO's Dark Matter, a muted grayscale street map. Under it sit the five boroughs'
+outlines (`src/lib/courses/nyc-boroughs.json`, from NYC Department of City Planning boundaries), so
+if the street map can't load the course still shows on grayscale land and water with borough names.
+
 On the map, markers sit beside the course, on whichever side covers the least of the route and the
 other markers. On small screens they shrink to numbered dots with a ring that fills as songs are added.
 

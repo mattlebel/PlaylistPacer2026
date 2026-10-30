@@ -747,10 +747,10 @@ function RaceLine({ runner, start, paceSec, bib }: { runner: string; start: Date
       </p>
       {bib && (
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <a href="https://results.nyrr.org" target="_blank" rel="noreferrer" className="btn btn-ghost px-4 py-2 text-sm">
+          <a href="https://liveresults.nyrr.org" target="_blank" rel="noreferrer" className="btn btn-ghost px-4 py-2 text-sm">
             Track {runner} live · bib {bib}
           </a>
-          <span className="text-xs text-pink/60">Search bib {bib} at results.nyrr.org or in the TCS NYC Marathon app.</span>
+          <span className="text-xs text-pink/60">Search bib {bib} at liveresults.nyrr.org or in the TCS NYC Marathon app.</span>
         </span>
       )}
     </div>

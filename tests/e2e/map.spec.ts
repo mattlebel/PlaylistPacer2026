@@ -180,7 +180,7 @@ test("friends see when Matt passes each mile, his bib, and when adding closes", 
   const race = await createRace(request, "Matt Lebel", { bib: "13302" });
   await openMap(page, race.id);
   await expect(page.getByText("Matt starts at 9:10 AM (Wave 1), runs about 11:00 a mile, and should finish around 1:58 PM.")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Track Matt live · bib 13302" })).toHaveAttribute("href", "https://results.nyrr.org");
+  await expect(page.getByRole("link", { name: "Track Matt live · bib 13302" })).toHaveAttribute("href", "https://liveresults.nyrr.org");
   // The fake server clock says Oct 20, noon (EDT): 11 days and 19 hours before 6am EST on race day.
   await expect(page.getByText(/^Adding closes in 11 days, 1[89] hrs$/)).toBeVisible();
   const row = page.getByRole("list", { name: "Miles along the course" }).getByRole("button", { name: /^Mile 15, Queensboro Bridge/ });
