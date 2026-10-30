@@ -14,6 +14,7 @@ import { cheer, cowbell, setSoundOn, soundOn } from "@/lib/sounds";
 import { spotifyTrackUrl } from "@/lib/spotify";
 import type { Song } from "@/lib/types";
 import { SpotifyIcon } from "./brand";
+import { Bib } from "./Bib";
 import { ChipStack } from "./ChipStack";
 import { CourseMap, type CourseMapHandle, type MarkerState } from "./CourseMap";
 import { SongSearch } from "./SongSearch";
@@ -64,6 +65,8 @@ export function Registry() {
   const [name, setName] = useState("");
   const [mine, setMine] = useState<Record<string, string>>({});
   const [sound, setSound] = useState(true);
+  // Layout options for the top of the page, while we pick one: ?layout=a, b or c.
+  const [layout, setLayout] = useState("");
   const [busy, setBusy] = useState(false);
   const mapRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement>(null);
@@ -93,6 +96,7 @@ export function Registry() {
     setName(saved);
     setMine(editKeys());
     setSound(soundOn());
+    setLayout(new URLSearchParams(window.location.search).get("layout") ?? "");
     // The welcome popup also asks for your name, so show it until we have one.
     if (!store.get("pp.howto") || !saved.trim()) setHowto(true);
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -262,85 +266,152 @@ export function Registry() {
     .sort((a, b) => a.songs.length - b.songs.length || Number(!!mileByN(b.n)?.landmark) - Number(!!mileByN(a.n)?.landmark) || a.n - b.n)
     .slice(0, 3);
   const openMile = open === null ? null : data.miles.find((m) => m.n === open)!;
+  const label = (
+    <div className="label">
+      {RACE.name} · {RACE.dateLabel}
+    </div>
+  );
+  const intro = data.open ? (
+    <>
+      Search for a song, drag it onto a mile, and {runner} hears it right there on race day. Add as many as you like: each mile
+      holds {data.perMile}, first come, first served.
+    </>
+  ) : (
+    <>Adding songs is closed. {runner} is heading to the start! Here&apos;s the soundtrack everyone built.</>
+  );
+  const progress = (
+    <div className="max-w-xl">
+      <div className="flex items-baseline justify-between gap-3 text-sm">
+        <span className="font-semibold text-chalk">
+          {data.total} of {capacity} spots filled
+        </span>
+        {data.open && data.total < capacity && <span className="text-pink/70">{capacity - data.total} to go. Keep them coming!</span>}
+      </div>
+      <div
+        className="mt-2 h-2.5 overflow-hidden rounded-full bg-ink/40"
+        role="progressbar"
+        aria-label="Spots filled on the course"
+        aria-valuemin={0}
+        aria-valuemax={capacity}
+        aria-valuenow={data.total}
+      >
+        <motion.div
+          className="h-full rounded-full bg-gradient-to-r from-pink via-butter to-mint"
+          initial={false}
+          animate={{ width: `${Math.max(2, (data.total / capacity) * 100)}%` }}
+          transition={{ type: "spring", stiffness: 120, damping: 20 }}
+        />
+      </div>
+    </div>
+  );
+  const stats = (
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[11px]">
+      <span className="flex items-center gap-2" title="This map updates on its own">
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-mint opacity-60" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-mint" />
+        </span>
+        LIVE
+      </span>
+      <span>
+        {data.total} {data.total === 1 ? "song" : "songs"} on the course
+      </span>
+      <span>
+        {withRoom} of {MILES.length} miles with room
+      </span>
+      {data.open && <Countdown closesAt={data.closesAt} offset={offset} />}
+      <button className="underline underline-offset-4 hover:text-chalk" onClick={() => setHowto(true)}>
+        How it works
+      </button>
+      <button
+        className="underline underline-offset-4 hover:text-chalk"
+        aria-pressed={sound}
+        title="Cowbells and cheers when you add a song"
+        onClick={() => {
+          setSoundOn(!sound);
+          setSound(!sound);
+          if (!sound) cowbell(1);
+        }}
+      >
+        {sound ? "🔔 Sound on" : "🔕 Sound off"}
+      </button>
+    </div>
+  );
+  const ticker = (
+    <div className="lg:hidden">
+      <Activity recent={data.recent} runner={runner} offset={offset} />
+    </div>
+  );
+  const bib = (size: "sm" | "md" | "lg", className = "") =>
+    data.bib ? (
+      <Bib number={data.bib} name={runner} wave={waveLabel(startHhmm(start))} start={fmtTimeOfDay(start)} size={size} className={className} />
+    ) : null;
+  const raceLine = <RaceLine runner={runner} start={start} paceSec={data.paceSec} bib={data.bib} />;
 
-  return (
-    <div className="space-y-8 pt-2">
-      <section className="max-w-3xl">
-        <div className="label">
-          {RACE.name} · {RACE.dateLabel}
+  const hero =
+    layout === "a" ? (
+      // A: compact header, bib card on the right
+      <section className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="space-y-3">
+          {label}
+          <h1 className="font-display text-[clamp(2rem,4vw,3rem)] font-extrabold leading-[1] tracking-tight">Help {runner} soundtrack 26.2</h1>
+          <p className="max-w-2xl leading-relaxed text-blush">{intro}</p>
+          {raceLine}
+          {progress}
+          {stats}
+          {ticker}
         </div>
+        <div className="hidden lg:block">{bib("sm", "rotate-[3deg]")}</div>
+      </section>
+    ) : layout === "b" ? (
+      // B: map first, a slim title row; the bib and race details move into the left column
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
+          <div>
+            {label}
+            <h1 className="mt-1 font-display text-3xl font-extrabold tracking-tight">Help {runner} soundtrack 26.2</h1>
+          </div>
+          <div className="w-full max-w-md">{progress}</div>
+        </div>
+        <p className="max-w-3xl text-sm text-blush">{intro}</p>
+        {stats}
+        {ticker}
+        <div className="lg:hidden">{raceLine}</div>
+      </section>
+    ) : layout === "c" ? (
+      // C: the bib is the hero
+      <section className="grid items-center gap-8 lg:grid-cols-[auto_minmax(0,1fr)] lg:gap-12">
+        <div className="flex justify-center">{bib("md", "-rotate-[3deg]")}</div>
+        <div className="space-y-4">
+          {label}
+          <h1 className="font-display text-[clamp(2.2rem,4.5vw,3.5rem)] font-extrabold leading-[0.98] tracking-tight [text-wrap:balance]">
+            Help {runner} soundtrack 26.2
+          </h1>
+          <p className="max-w-xl leading-relaxed text-blush">{intro}</p>
+          {raceLine}
+          {progress}
+          {stats}
+          {ticker}
+        </div>
+      </section>
+    ) : (
+      <section className="max-w-3xl">
+        {label}
         <h1 className="mt-2 font-display text-[clamp(2.4rem,6vw,4.5rem)] font-extrabold leading-[0.95] tracking-tight [text-wrap:balance]">
           Help {runner} soundtrack 26.2
         </h1>
-        <p className="mt-4 text-lg leading-relaxed text-blush">
-          {data.open ? (
-            <>
-              Search for a song, drag it onto a mile, and {runner} hears it right there on race day. Add as many as you like:
-              each mile holds {data.perMile}, first come, first served.
-            </>
-          ) : (
-            <>Adding songs is closed. {runner} is heading to the start! Here&apos;s the soundtrack everyone built.</>
-          )}
-        </p>
-        <RaceLine runner={runner} start={start} paceSec={data.paceSec} bib={data.bib} />
-        <div className="mt-5 max-w-xl">
-          <div className="flex items-baseline justify-between gap-3 text-sm">
-            <span className="font-semibold text-chalk">
-              {data.total} of {capacity} spots filled
-            </span>
-            {data.open && data.total < capacity && <span className="text-pink/70">{capacity - data.total} to go. Keep them coming!</span>}
-          </div>
-          <div
-            className="mt-2 h-2.5 overflow-hidden rounded-full bg-ink/40"
-            role="progressbar"
-            aria-label="Spots filled on the course"
-            aria-valuemin={0}
-            aria-valuemax={capacity}
-            aria-valuenow={data.total}
-          >
-            <motion.div
-              className="h-full rounded-full bg-gradient-to-r from-pink via-butter to-mint"
-              initial={false}
-              animate={{ width: `${Math.max(2, (data.total / capacity) * 100)}%` }}
-              transition={{ type: "spring", stiffness: 120, damping: 20 }}
-            />
-          </div>
-        </div>
-        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[11px]">
-          <span className="flex items-center gap-2" title="This map updates on its own">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-mint opacity-60" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-mint" />
-            </span>
-            LIVE
-          </span>
-          <span>
-            {data.total} {data.total === 1 ? "song" : "songs"} on the course
-          </span>
-          <span>
-            {withRoom} of {MILES.length} miles with room
-          </span>
-          {data.open && <Countdown closesAt={data.closesAt} offset={offset} />}
-          <button className="underline underline-offset-4 hover:text-chalk" onClick={() => setHowto(true)}>
-            How it works
-          </button>
-          <button
-            className="underline underline-offset-4 hover:text-chalk"
-            aria-pressed={sound}
-            title="Cowbells and cheers when you add a song"
-            onClick={() => {
-              setSoundOn(!sound);
-              setSound(!sound);
-              if (!sound) cowbell(1);
-            }}
-          >
-            {sound ? "🔔 Sound on" : "🔕 Sound off"}
-          </button>
-        </div>
-        <div className="lg:hidden">
-          <Activity recent={data.recent} runner={runner} offset={offset} />
-        </div>
+        <p className="mt-4 text-lg leading-relaxed text-blush">{intro}</p>
+        {raceLine}
+        <div className="mt-5">{progress}</div>
+        <div className="mt-4">{stats}</div>
+        {ticker}
       </section>
+    );
+
+
+  return (
+    <div className="space-y-8 pt-2">
+      {hero}
 
       <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
         <div ref={mapRef} className="panel scroll-mt-2 overflow-hidden lg:order-2">
@@ -357,6 +428,12 @@ export function Registry() {
         </div>
 
         <div className="space-y-6 lg:order-1 lg:self-start">
+        {layout === "b" && (
+          <div className="panel hidden space-y-4 p-5 lg:block">
+            <div className="flex justify-center">{bib("sm", "rotate-[2deg]")}</div>
+            {raceLine}
+          </div>
+        )}
         <aside ref={panelRef} className="panel scroll-mt-4 space-y-5 p-5">
           {data.open ? (
             <>
