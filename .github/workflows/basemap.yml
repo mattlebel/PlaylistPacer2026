@@ -1,0 +1,38 @@
+name: Update basemap
+
+# Downloads the street map for the NYC course area (scripts/fetch-basemap.mjs) and commits it to
+# public/basemap, so the app serves it as static files. Run it by hand from the Actions tab.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Download and trim tiles
+        run: node scripts/fetch-basemap.mjs
+
+      - name: Commit the basemap
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/basemap
+          if git diff --cached --quiet; then
+            echo "Basemap unchanged."
+          else
+            git commit -m "Update the static basemap for the NYC course area"
+            git push
+          fi
