@@ -242,6 +242,44 @@ test("songs from Spotify can be previewed in the mile popup", async ({ page, req
   await expect(sheet.locator("iframe")).toHaveCount(0);
 });
 
+test("Undo takes a song back off the course and puts it back in your hand", async ({ page, request }) => {
+  const race = await createRace(request);
+  await openMap(page, race.id);
+  await typeSong(page, "Juice", "Lizzo");
+  await page.getByLabel("Or choose a mile").selectOption({ label: "Mile 8 · Barclays & the Bank Tower (3 left)" });
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(marker(page, 8)).toHaveAccessibleName(/1 of 3 songs/);
+  await page.getByRole("status").getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByRole("status")).toHaveText("Took it back. Drop it somewhere else.");
+  await expect(marker(page, 8)).toHaveAccessibleName(/0 of 3 songs/);
+  await expect(page.getByRole("button", { name: "Drag Juice onto a mile" })).toBeVisible();
+});
+
+test("dropping a song gives a little buzz on phones that support it", async ({ page, request }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "vibrate", {
+      value: (ms: number) => {
+        (window as unknown as { buzzed?: number }).buzzed = ms;
+        return true;
+      },
+    });
+  });
+  const race = await createRace(request);
+  await openMap(page, race.id);
+  await typeSong(page, "Toxic", "Britney Spears");
+  await dragSongTo(page, 13);
+  await expect(page.getByRole("status")).toContainText("Added to Mile 13");
+  expect(await page.evaluate(() => (window as unknown as { buzzed?: number }).buzzed)).toBe(35);
+});
+
+test("phones keep the map files, so repeat visits load the map instantly", async ({ request }) => {
+  const tile = await request.get("/basemap/tiles/14/4824/6160.pbf");
+  expect(tile.status()).toBe(200);
+  expect(tile.headers()["cache-control"]).toBe("public, max-age=604800, stale-while-revalidate=2592000");
+  const meta = await request.get("/basemap/basemap.json");
+  expect(meta.headers()["cache-control"]).toBe("public, max-age=86400, stale-while-revalidate=604800");
+});
+
 test("link previews are personalized", async ({ request }) => {
   const race = await createRace(request, "Priya Patel");
   await addViaApi(request, race.id, { mile: 1, song: song("Run the World", "Beyoncé") });

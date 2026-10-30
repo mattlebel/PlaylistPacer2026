@@ -141,18 +141,19 @@ export function Tabs<T extends string>({
 export function Toast({
   message,
   onDone,
-  action,
+  actions,
 }: {
   message: string | null;
   onDone(): void;
-  /** An optional button, e.g. "Share". The toast stays up longer when there's one. */
-  action?: { label: string; onClick(): void } | null;
+  /** Optional buttons, e.g. "Share" and "Undo". The toast stays up longer when there are some. */
+  actions?: { label: string; onClick(): void }[] | null;
 }) {
+  const has = !!actions?.length;
   useEffect(() => {
     if (!message) return;
-    const id = setTimeout(onDone, action ? 9000 : 4200);
+    const id = setTimeout(onDone, has ? 9000 : 4200);
     return () => clearTimeout(id);
-  }, [message, onDone, action]);
+  }, [message, onDone, has]);
   return (
     <AnimatePresence>
       {message && (
@@ -165,11 +166,11 @@ export function Toast({
         >
           <span className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <span>{message}</span>
-            {action && (
-              <button className="btn bg-ink px-4 py-1.5 text-xs text-pink" onClick={action.onClick}>
-                {action.label}
+            {actions?.map((a) => (
+              <button key={a.label} className="btn bg-ink px-4 py-1.5 text-xs text-pink" onClick={a.onClick}>
+                {a.label}
               </button>
-            )}
+            ))}
           </span>
         </motion.div>
       )}

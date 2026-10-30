@@ -34,7 +34,9 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
 - **In each mile's popup:** songs already there (with a Spotify preview player), when the runner
   passes, the coach's notes, and a search box to add one. Search results grey out songs that are
   already on the course.
-- **After adding:** a Share button sends a ready-made message with the link.
+- **After adding:** the song flies from your finger into its marker (with a short buzz on Android
+  phones), and the message has **Share** (a ready-made message with the link) and **Undo** (takes it
+  back off the course and puts it back in your hand).
 - **Rules, enforced in the database:**
   - Up to 3 songs per mile (about a mile of music at a typical pace). Each song takes a numbered spot, so two people dropping at once can't
     overfill a mile.
@@ -59,7 +61,8 @@ track of the 2025 race, scaled to the certified 42,195 m and stored as positions
 tiles, zooms 9–14, about 11 MB) from [OpenFreeMap](https://openfreemap.org) (OpenStreetMap data),
 trimmed to water, parks, streets and airports and drawn in muted grays by `src/lib/basemapStyle.ts`.
 No labels, so no fonts or icons: the map makes no requests to anyone else, and panning stays around
-that area. To refresh it, run the **Update basemap** workflow in GitHub Actions (it runs
+that area. Phones keep the map files for a week (see `headers` in `next.config.ts`), so repeat visits
+load the map instantly and use no data. To refresh it, run the **Update basemap** workflow in GitHub Actions (it runs
 `scripts/fetch-basemap.mjs` and commits the result).
 
 If those files are missing, the map falls back to CARTO's hosted Dark Matter, and failing that to

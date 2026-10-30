@@ -52,7 +52,9 @@ export function Registry() {
   const [open, setOpen] = useState<number | null>(null);
   const [howto, setHowto] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [toastAction, setToastAction] = useState<{ label: string; onClick(): void } | null>(null);
+  const [toastActions, setToastActions] = useState<{ label: string; onClick(): void }[] | null>(null);
+  // The song you just dropped, flying from your finger into its marker.
+  const [flight, setFlight] = useState<{ song: Song; from: { x: number; y: number }; to: { x: number; y: number }; key: string } | null>(null);
   // Server time minus this device's time, so countdowns and "2 min ago" match the server.
   const [offset, setOffset] = useState(0);
   // A new song somewhere on the course: the line charges up to that mile.
@@ -100,9 +102,9 @@ export function Registry() {
 
   const taken = useMemo(() => new Map((data?.miles ?? []).flatMap((m) => m.songs.map((e) => [songKey(e.song), m.n] as const))), [data]);
 
-  const say = (message: string | null, action: { label: string; onClick(): void } | null = null) => {
+  const say = (message: string | null, actions: { label: string; onClick(): void }[] | null = null) => {
     setToast(message);
-    setToastAction(action);
+    setToastActions(actions);
   };
 
   const markers = useMemo<MarkerState[]>(
@@ -133,7 +135,8 @@ export function Registry() {
     }
   };
 
-  const add = async (mile: number, song: Song) => {
+  /** `from`: where the song was let go (a drag), so it can fly into the marker from there. */
+  const add = async (mile: number, song: Song, from?: { x: number; y: number }) => {
     if (!data || busy) return false;
     if (!name.trim()) {
       say(`Add your name first, so ${first(data.runnerName)} knows who picked it.`);
@@ -154,7 +157,15 @@ export function Registry() {
       rememberEditKey(res.id, res.editKey);
       setMine(editKeys());
       setHeld(null);
-      say(`Added to ${mileLabel(mile)} · ${mileByN(mile)?.title}`, { label: "Share", onClick: () => share(song, mile) });
+      navigator.vibrate?.(35); // a little buzz on phones that support it (Android)
+      const target = document.querySelector(`.maplibregl-marker [data-drop-mile="${mile}"]`)?.getBoundingClientRect();
+      if (from && target?.width && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        setFlight({ song, from, to: { x: target.left + target.width / 2, y: target.top + target.height / 2 }, key: res.id });
+      }
+      say(`Added to ${mileLabel(mile)} · ${mileByN(mile)?.title}`, [
+        { label: "Share", onClick: () => share(song, mile) },
+        { label: "Undo", onClick: () => undo(res.id, res.editKey, song) },
+      ]);
       confetti();
       await load();
       return true;
@@ -166,6 +177,18 @@ export function Registry() {
       return false;
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** Takes a song you just added back off the course and puts it back in your hand. */
+  const undo = async (plantId: string, editKey: string, song: Song) => {
+    try {
+      await api(`/api/plants/${plantId}`, { method: "DELETE", key: { header: "x-edit-key", value: editKey } });
+      setHeld(song);
+      say("Took it back. Drop it somewhere else.");
+      await load();
+    } catch (e) {
+      say(e instanceof ApiError ? e.message : "Couldn't undo that. Try again.");
     }
   };
 
@@ -287,7 +310,7 @@ export function Registry() {
                   }}
                   onMove={(x, y) => courseMap.current?.dragAt(x, y)}
                   onHover={setHot}
-                  onDrop={(n) => add(n, held)}
+                  onDrop={(n, at) => add(n, held, at)}
                   onDiscard={() => setHeld(null)}
                 />
               )}
@@ -374,7 +397,23 @@ export function Registry() {
         </form>
       </Modal>
 
-      <Toast message={toast} action={toastAction} onDone={() => say(null)} />
+      <Toast message={toast} actions={toastActions} onDone={() => say(null)} />
+      {flight &&
+        createPortal(
+          <motion.div
+            key={flight.key}
+            aria-hidden
+            className="pointer-events-none fixed left-0 top-0 z-[80] flex max-w-[240px] items-center gap-2 rounded-full bg-pink py-1 pl-1 pr-3 text-ink shadow-[0_14px_30px_rgb(8_10_40/0.55)] ring-2 ring-chalk"
+            initial={{ x: flight.from.x - 40, y: flight.from.y - 24, scale: 1, opacity: 1 }}
+            animate={{ x: flight.to.x - 40, y: flight.to.y - 24, scale: 0.15, opacity: 0.3 }}
+            transition={{ duration: 0.5, ease: [0.5, 0, 0.75, 0] }}
+            onAnimationComplete={() => setFlight(null)}
+            style={{ transformOrigin: "40px 24px" }}
+          >
+            <ChipFace song={flight.song} small />
+          </motion.div>,
+          document.body,
+        )}
     </div>
   );
 }
@@ -414,7 +453,7 @@ function HeldSong({
   onDragState(dragging: boolean): void;
   onHover(n: number | null): void;
   onMove(x: number, y: number): void;
-  onDrop(n: number): void;
+  onDrop(n: number, at?: { x: number; y: number }): void;
   onDiscard(): void;
 }) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
@@ -477,7 +516,7 @@ function HeldSong({
             retarget();
             const d = drag.current;
             end();
-            if (d?.active && d.target !== null) onDrop(d.target);
+            if (d?.active && d.target !== null) onDrop(d.target, { x: d.lastX, y: d.lastY });
           }}
           onPointerCancel={end}
         >
