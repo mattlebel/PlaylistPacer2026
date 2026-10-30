@@ -31,9 +31,7 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
     back to the search box. Once 15 or fewer spots are left, it suggests miles that still have room.
     A progress bar shows how many of the 81 spots are filled.
   - On phones, once the search box scrolls away, a search bar floats at the bottom of the screen
-    and opens search over the whole screen, so you never leave the map. Two other placements can
-    be tried with `?add=dock` (progress + button at the bottom) or `?add=bar` (search bar pinned
-    to the top); both scroll back to the search box.
+    and opens search over the whole screen, so you never leave the map.
   - The welcome popup asks for your first name, and can't be closed until you give one; it shows
     on your songs as "from Sarah". To change it, reopen "How it works".
   - You can remove your own song from the same device.

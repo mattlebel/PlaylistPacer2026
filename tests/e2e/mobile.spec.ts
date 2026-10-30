@@ -1,4 +1,4 @@
-import { createRace, dragSongTo, expect, marker, openMap, test, typeSong, welcome } from "./fixtures";
+import { createRace, dragSongTo, expect, marker, openMap, test, typeSong } from "./fixtures";
 
 const overflow = (page: import("@playwright/test").Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 
@@ -37,18 +37,6 @@ test("on a phone the intro is one short line", async ({ page, request }) => {
   await expect(page.getByText(/each mile holds 3/)).toBeHidden();
   await expect(page.getByText(/Matt starts at 9:10 AM/)).toBeHidden();
 });
-
-for (const ui of ["dock", "bar"]) {
-  test(`?add=${ui}: the "Add a song" button scrolls back to the search box`, async ({ page, request }) => {
-    const race = await createRace(request);
-    await page.goto(`/r/${race.id}?add=${ui}`);
-    await welcome(page);
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await page.getByRole("button", { name: /Add a song/ }).click();
-    await expect(page.getByRole("combobox", { name: "Search for a song" })).toBeInViewport();
-    await expect(page.getByRole("combobox", { name: "Search for a song" })).toBeFocused();
-  });
-}
 
 test("home and setup fit a phone", async ({ page }) => {
   await page.goto("/");

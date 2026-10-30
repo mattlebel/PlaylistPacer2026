@@ -57,8 +57,7 @@ export function Registry() {
   const [hot, setHot] = useState<number | null>(null);
   const [open, setOpen] = useState<number | null>(null);
   const [howto, setHowto] = useState(false);
-  // How phones get back to the search box once it's scrolled away (being tried out: ?add=sheet|dock|bar).
-  const [addUi, setAddUi] = useState<AddUi>("sheet");
+  // Phones: search over the whole screen, opened from the floating search bar.
   const [sheet, setSheet] = useState(false);
   const phone = usePhone();
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -103,8 +102,6 @@ export function Registry() {
     setName(saved);
     setMine(editKeys());
     setSound(soundOn());
-    const ui = new URLSearchParams(window.location.search).get("add");
-    if (ui === "dock" || ui === "bar" || ui === "sheet") setAddUi(ui);
     // The welcome popup also asks for your name, so show it until we have one.
     if (!store.get("pp.howto") || !saved.trim()) setHowto(true);
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -568,15 +565,13 @@ export function Registry() {
       </Modal>
 
       <Toast message={toast} actions={toastActions} onDone={() => say(null)} />
-      <AddSong
-        ui={addUi}
-        show={data.open && data.total < capacity && !held && !panelVisible && !open && !howto && !toast && !sheet}
+      <SearchBar
+        show={phone && data.open && data.total < capacity && !held && !panelVisible && !open && !howto && !toast && !sheet}
         label={myCount ? "Add another song" : "Add a song"}
         left={capacity - data.total}
-        filled={data.total / capacity}
-        onClick={addUi === "sheet" ? openSheet : toSearch}
+        onClick={openSheet}
       />
-      {addUi === "sheet" && phone && data.open && (
+      {phone && data.open && (
         <SearchSheet ref={sheetRef} open={sheet} label={myCount ? "Add another song" : "Add a song"} taken={taken} onClose={() => setSheet(false)} onPick={(s) => {
           setSheet(false);
           (document.activeElement as HTMLElement | null)?.blur();
@@ -744,8 +739,6 @@ function HeldSong({
   );
 }
 
-type AddUi = "sheet" | "dock" | "bar";
-
 /** True on phone-sized screens (where the map sits below the search box). */
 function usePhone() {
   const [phone, setPhone] = useState(false);
@@ -759,49 +752,30 @@ function usePhone() {
   return phone;
 }
 
-/** Phones only: the way back to the search box once it has scrolled off screen. */
-function AddSong({ ui, show, label, left, filled, onClick }: { ui: AddUi; show: boolean; label: string; left: number; filled: number; onClick(): void }) {
-  const spots = `${left} ${left === 1 ? "spot" : "spots"} left`;
-  const short = `${left} left`;
+/** Phones only: once the search box has scrolled away, a search bar floats at the bottom of the screen. */
+function SearchBar({ show, label, left, onClick }: { show: boolean; label: string; left: number; onClick(): void }) {
   return (
     <AnimatePresence>
       {show && (
         <motion.div
-          key={ui}
-          initial={{ opacity: 0, y: ui === "bar" ? -24 : 24 }}
+          initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: ui === "bar" ? -24 : 24 }}
+          exit={{ opacity: 0, y: 24 }}
           transition={{ type: "spring", stiffness: 420, damping: 34 }}
-          className={`fixed inset-x-0 z-40 px-3 lg:hidden ${ui === "bar" ? "top-0 pt-[max(0.5rem,env(safe-area-inset-top))]" : "bottom-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]"}`}
+          className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden"
         >
-          {ui === "dock" ? (
-            <div className="flex items-center gap-3 rounded-2xl bg-ink-2/95 p-2.5 pl-4 shadow-[0_-10px_40px_rgb(8_10_40/0.55)] ring-1 ring-pink/25 backdrop-blur">
-              <div className="min-w-0 flex-1">
-                <div className="font-mono text-[10px] uppercase text-pink/80">{spots}</div>
-                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink/50">
-                  <div className="h-full rounded-full bg-gradient-to-r from-pink via-butter to-mint" style={{ width: `${Math.max(3, filled * 100)}%` }} />
-                </div>
-              </div>
-              <button className="btn shrink-0 bg-pink px-5 py-3 text-sm" onClick={onClick}>
-                ＋ {label}
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={onClick}
-              aria-label={label}
-              className={`flex w-full items-center gap-3 rounded-full bg-chalk py-2 pl-4 pr-2 text-left text-ink ring-2 ring-pink ${
-                ui === "bar" ? "shadow-[0_10px_30px_rgb(8_10_40/0.5)]" : "shadow-[0_-6px_30px_rgb(8_10_40/0.55)]"
-              }`}
-            >
-              <svg viewBox="0 0 20 20" className="h-5 w-5 shrink-0" aria-hidden>
-                <circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" strokeWidth="2" />
-                <path d="M13 13l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-              <span className="min-w-0 flex-1 truncate text-[15px] text-ink/60">Search for a song…</span>
-              <span className="shrink-0 rounded-full bg-ink px-3 py-1.5 font-mono text-[10px] uppercase text-pink">{short}</span>
-            </button>
-          )}
+          <button
+            onClick={onClick}
+            aria-label={label}
+            className="flex w-full items-center gap-3 rounded-full bg-chalk py-2 pl-4 pr-2 text-left text-ink shadow-[0_-6px_30px_rgb(8_10_40/0.55)] ring-2 ring-pink"
+          >
+            <svg viewBox="0 0 20 20" className="h-5 w-5 shrink-0" aria-hidden>
+              <circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" strokeWidth="2" />
+              <path d="M13 13l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            <span className="min-w-0 flex-1 truncate text-[15px] text-ink/60">Search for a song…</span>
+            <span className="shrink-0 rounded-full bg-ink px-3 py-1.5 font-mono text-[10px] uppercase text-pink">{left} left</span>
+          </button>
         </motion.div>
       )}
     </AnimatePresence>
