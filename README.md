@@ -33,8 +33,8 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
     A progress bar shows how many of the 81 spots are filled.
   - On phones, once the search box scrolls away, a search bar floats at the bottom of the screen
     and opens search over the whole screen, so you never leave the map.
-  - The welcome popup shows the runner's bib and, on bigger screens, a peek at the live feed, so
-    it's clear whose race this is. It asks for your first name (pinned to the bottom of the popup
+  - The welcome popup shows the runner's bib and, on bigger screens, a live feed that rolls through
+    the latest songs, so it's clear whose race this is. "Get started" marks the name box. It asks for your first name (pinned to the bottom of the popup
     so it's always on screen) and can't be closed until you give one; it shows on your songs as
     "from Sarah". To change it, reopen "How it works".
   - You can remove your own song from the same device.
@@ -48,10 +48,12 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
 - **In each mile's popup:** songs already there (with a Spotify preview player), when the runner
   passes, the coach's notes, and a search box to add one. Search results grey out songs that are
   already on the course.
-- **Sounds:** a quiet cowbell "clonk-clonk" and a short crowd cheer after adding a song, a single
-  cowbell on "Let's go", and a cheer when the runner saves the playlist. They're generated in the
-  browser (`src/lib/sounds.ts`, no audio files), respect the iPhone silent switch, don't interrupt
-  music, and "Sound on/off" next to "How it works" turns them off (remembered per device).
+- **Sounds:** the song you pick plays its preview clip while you drag it to a mile; on the drop it
+  fades out as the crowd roars, with confetti (with no clip: a cowbell "clonk-clonk" and a softer
+  cheer). "Let's go" rings a few cowbells over the crowd, and the runner hears a cheer on saving
+  the playlist. The crowd is a real 3-second recording (`public/sounds/cheer.mp3`); cowbells are
+  made in the browser (`src/lib/sounds.ts`). They respect the iPhone silent switch, don't
+  interrupt music, and "Sound on/off" next to "How it works" turns them off (remembered per device).
 - **After adding:** the song flies from your finger into its marker (with a short buzz on Android
   phones), and the message has **Share** (a ready-made message with the link) and **Undo** (takes it
   back off the course and puts it back in your hand).

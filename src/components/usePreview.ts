@@ -48,7 +48,12 @@ export function usePreview() {
     };
   }, [owner]);
 
-  const claim = () => window.dispatchEvent(new CustomEvent(CLAIM, { detail: owner }));
+  const claim = () => {
+    held = null;
+    clearFade();
+    if (player) player.volume = 1;
+    window.dispatchEvent(new CustomEvent(CLAIM, { detail: owner }));
+  };
 
   const showEmbed = (s: Song, auto = false) => {
     if (!s.spotifyId) return;
@@ -107,4 +112,67 @@ export function usePreview() {
     embedFor: (s: Song) => (embed?.key === keyOf(s) ? embed : null),
     busy: !!clip,
   };
+}
+
+/*
+ * The song you're holding: its clip plays while you drag it to a mile, then fades out as the crowd
+ * cheers when you drop it. Call `holdPreview` inside the tap that picked the song (phones need that).
+ */
+let held: string | null = null;
+let fade: ReturnType<typeof setInterval> | null = null;
+
+const clearFade = () => {
+  if (fade) clearInterval(fade);
+  fade = null;
+};
+
+export async function holdPreview(s: Song) {
+  const key = `held:${keyOf(s)}`;
+  window.dispatchEvent(new CustomEvent(CLAIM, { detail: "held" }));
+  clearFade();
+  const a = audioPlayer();
+  a.pause();
+  a.volume = 1;
+  a.src = SILENT;
+  a.play().catch(() => {});
+  held = key;
+  const url = await findPreview(s)
+    .then((r) => r.url)
+    .catch(() => null);
+  if (held !== key || !url) return;
+  a.src = url;
+  a.onended = null;
+  try {
+    await a.play();
+    if (held === key) window.dispatchEvent(new CustomEvent("pp:sound", { detail: "preview" }));
+  } catch {
+    /* no sound this time */
+  }
+}
+
+/** Whether the held song's clip is playing right now. */
+export const holdingPreview = () => held !== null && !!player && !player.paused && player.src !== SILENT;
+
+/** Stops the held song's clip: straight away, or fading out over `ms` (phones that ignore volume just stop then). */
+export function releasePreview(ms = 0) {
+  if (!held) return;
+  held = null;
+  const a = player;
+  if (!a) return;
+  clearFade();
+  if (!ms || a.paused) {
+    a.pause();
+    return;
+  }
+  const start = a.volume;
+  const t0 = Date.now();
+  fade = setInterval(() => {
+    const k = Math.min(1, (Date.now() - t0) / ms);
+    a.volume = Math.max(0, start * (1 - k));
+    if (k >= 1) {
+      clearFade();
+      a.pause();
+      a.volume = 1;
+    }
+  }, 40);
 }

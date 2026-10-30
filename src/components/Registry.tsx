@@ -10,7 +10,7 @@ import { confetti } from "@/lib/confetti";
 import { COURSE_NOTES, COURSE_NOTES_CREDIT } from "@/lib/courseNotes";
 import { etaAtMile, finishEta, fmtPace, fmtTimeOfDay, MILES, mileByN, mileInSentence, mileLabel, RACE, startHhmm, waveLabel } from "@/lib/race";
 import { songKey } from "@/lib/songKey";
-import { cheer, cowbell, setSoundOn, soundOn } from "@/lib/sounds";
+import { cheer, cowbell, roar, setSoundOn, soundOn, welcome } from "@/lib/sounds";
 import { spotifyTrackUrl } from "@/lib/spotify";
 import type { Song } from "@/lib/types";
 import { SpotifyIcon } from "./brand";
@@ -21,7 +21,7 @@ import { ChipStack } from "./ChipStack";
 import { CourseMap, type CourseMapHandle, type MarkerState } from "./CourseMap";
 import { SongSearch } from "./SongSearch";
 import { SpotifyPlayer } from "./SpotifyPlayer";
-import { usePreview } from "./usePreview";
+import { holdingPreview, holdPreview, releasePreview, usePreview } from "./usePreview";
 import { Modal, Toast } from "./ui";
 
 type MileData = RegistryData["miles"][number];
@@ -128,6 +128,11 @@ export function Registry() {
     return () => clearInterval(t);
   }, [load, dragging]);
 
+  // Put back, or gone some other way: stop its preview.
+  useEffect(() => {
+    if (!held) releasePreview();
+  }, [held]);
+
   const taken = useMemo(() => new Map((data?.miles ?? []).flatMap((m) => m.songs.map((e) => [songKey(e.song), m.n] as const))), [data]);
 
   const say = (message: string | null, actions: { label: string; onClick(): void }[] | null = null) => {
@@ -155,6 +160,8 @@ export function Registry() {
 
   const pickSong = (s: Song) => {
     setHeld(s);
+    // Hear it while you drag it to a mile (started inside the tap, which phones need).
+    if (soundOn()) void holdPreview(s);
     // On a phone the map is above the search box: bring it into view so there's somewhere to drag to.
     if (window.matchMedia("(max-width: 1023px)").matches) {
       // Wait a frame so the tray has rendered, then scroll the map to the top of the screen.
@@ -203,8 +210,15 @@ export function Registry() {
       setMine(editKeys());
       setHeld(null);
       navigator.vibrate?.(35); // a little buzz on phones that support it (Android)
-      cowbell(2);
-      cheer(0.25);
+      if (holdingPreview()) {
+        // The song fades out as the crowd roars.
+        releasePreview(1400);
+        roar(0.05);
+      } else {
+        releasePreview();
+        cowbell(2);
+        cheer(0.25);
+      }
       // Ready for the next one: on a computer, the cursor goes straight back to the search box.
       if (window.matchMedia("(min-width: 1024px)").matches) document.getElementById(SEARCH_ID)?.focus({ preventScroll: true });
       const target = document.querySelector(`.maplibregl-marker [data-drop-mile="${mile}"]`)?.getBoundingClientRect();
@@ -355,6 +369,7 @@ export function Registry() {
         onClick={() => {
           setSoundOn(!sound);
           setSound(!sound);
+          if (sound) releasePreview();
           if (!sound) cowbell(1);
         }}
       >
@@ -579,7 +594,7 @@ export function Registry() {
         <div className="mt-4 hidden rounded-2xl bg-ink/25 px-3 pb-1.5 pt-3 sm:block" aria-label="Live feed preview">
           <FeedLabel />
           {data.recent.length ? (
-            <FeedRows recent={data.recent.slice(0, 2)} runner={runner} offset={offset} compact />
+            <FeedTicker recent={data.recent} runner={runner} offset={offset} />
           ) : (
             <p className="px-2 py-1 text-sm text-pink/60">No songs yet. Yours could be the first!</p>
           )}
@@ -589,11 +604,12 @@ export function Registry() {
           onSubmit={(e) => {
             e.preventDefault();
             if (!name.trim()) return;
-            cowbell(1);
+            welcome();
             closeHowto();
           }}
         >
-          <label htmlFor="welcome-name" className="font-display text-xl font-bold">
+          <div className="label mb-1 text-mint">Get started</div>
+          <label htmlFor="welcome-name" className="block font-display text-xl font-bold">
             First, what&apos;s your name?
           </label>
           <p className="mb-3 text-sm text-blush">So {runner} knows who picked each song.</p>
@@ -1145,6 +1161,25 @@ function FeedLabel() {
   );
 }
 
+const TICK_MS = 2600;
+
+/** Two of the latest songs at a time, rolling through the rest: the welcome popup's peek at the live feed. */
+function FeedTicker({ recent, runner, offset }: { recent: RegistryData["recent"]; runner: string; offset: number }) {
+  const [i, setI] = useState(0);
+  const roll = recent.length > 2;
+  useEffect(() => {
+    if (!roll || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const t = setInterval(() => setI((n) => n + 1), TICK_MS);
+    return () => clearInterval(t);
+  }, [roll]);
+  const shown = roll ? [recent[i % recent.length], recent[(i + 1) % recent.length]] : recent;
+  return (
+    <div className="h-[84px] overflow-hidden">
+      <FeedRows recent={shown} runner={runner} offset={offset} compact rolling />
+    </div>
+  );
+}
+
 /** The latest songs. `onOpen` makes each one open its mile. */
 function FeedRows({
   recent,
@@ -1152,6 +1187,7 @@ function FeedRows({
   offset,
   onOpen,
   compact = false,
+  rolling = false,
 }: {
   recent: RegistryData["recent"];
   runner: string;
@@ -1159,13 +1195,22 @@ function FeedRows({
   onOpen?(n: number): void;
   /** Smaller art, one line each. */
   compact?: boolean;
+  /** Songs slide up and out as the next ones roll in. */
+  rolling?: boolean;
 }) {
   const now = useServerNow(offset);
   return (
         <ol className={compact ? "space-y-0.5" : "space-y-1"}>
-          <AnimatePresence initial={false}>
+          <AnimatePresence initial={false} mode={rolling ? "popLayout" : "sync"}>
             {recent.map((r) => (
-              <motion.li key={r.id} layout initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+              <motion.li
+                key={r.id}
+                layout
+                initial={rolling ? { opacity: 0, y: 28 } : { opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={rolling ? { opacity: 0, y: -28 } : { opacity: 0 }}
+                transition={{ duration: rolling ? 0.45 : 0.3, ease: "easeOut" }}
+              >
                 <div className={`flex items-center gap-3 rounded-xl px-2 hover:bg-ink/25 ${compact ? "py-1" : "py-1.5"}`}>
                   {r.art && r.spotifyId ? (
                     <a href={spotifyTrackUrl(r.spotifyId)} target="_blank" rel="noreferrer" aria-label={`Play ${r.title} on Spotify`} className={`shrink-0 ${compact ? "h-8 w-8" : "h-10 w-10"}`}>

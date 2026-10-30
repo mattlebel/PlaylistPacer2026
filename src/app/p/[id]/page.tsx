@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "Your song · Playlist Pacer", robots
 
 export default function EditPlantPage() {
   return (
-    <Shell>
+    <Shell cta={false}>
       <Suspense fallback={<p className="pt-10 text-pink/60">Loading…</p>}>
         <EditPlant />
       </Suspense>

@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
     { source: "/basemap/tiles/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=2592000" }] },
     { source: "/basemap/basemap.json", headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }] },
     { source: "/vendor/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }] },
+    { source: "/sounds/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=604800" }] },
   ],
   turbopack: {
     rules: {

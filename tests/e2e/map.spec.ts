@@ -1,5 +1,25 @@
 import { addViaApi, createRace, dragSongTo, expect, marker, openMap, song, test, typeSong } from "./fixtures";
 
+/** A silent 8 kHz WAV, standing in for a song's preview clip. */
+function silentWav(seconds: number) {
+  const n = 8000 * seconds;
+  const wav = Buffer.alloc(44 + n);
+  wav.write("RIFF", 0);
+  wav.writeUInt32LE(36 + n, 4);
+  wav.write("WAVEfmt ", 8);
+  wav.writeUInt32LE(16, 16);
+  wav.writeUInt16LE(1, 20);
+  wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(8000, 24);
+  wav.writeUInt32LE(8000, 28);
+  wav.writeUInt16LE(1, 32);
+  wav.writeUInt16LE(8, 34);
+  wav.write("data", 36);
+  wav.writeUInt32LE(n, 40);
+  wav.fill(128, 44);
+  return wav;
+}
+
 test("a friend drags a song onto a mile", async ({ page, request }) => {
   const race = await createRace(request);
   await page.goto(`/r/${race.id}`);
@@ -132,6 +152,8 @@ test("the map updates live as other people add songs", async ({ page, request })
 
 test("the welcome popup can't be skipped without a name", async ({ page, request }) => {
   const race = await createRace(request, "Matt Lebel", { bib: "13302" });
+  await addViaApi(request, race.id, { mile: 3, name: "Ana", song: song("Float On", "Modest Mouse") });
+  await addViaApi(request, race.id, { mile: 5, name: "Mom", song: song("Ho Hey", "The Lumineers") });
   await addViaApi(request, race.id, { mile: 7, name: "Sarah", song: song("Toxic", "Britney Spears") });
   await page.goto(`/r/${race.id}`);
   const intro = page.getByRole("dialog", { name: "How it works" });
@@ -140,7 +162,12 @@ test("the welcome popup can't be skipped without a name", async ({ page, request
   await expect(intro.getByLabel("Bib 13302, Matt, Wave 1").last()).toBeVisible();
   await expect(intro.getByText("Add songs to Matt's NYC Marathon playlist.")).toBeVisible();
   await expect(intro.getByText("Live feed – see what others are adding")).toBeVisible();
-  await expect(intro.getByText(/Sarah added “Toxic” to mile 7/)).toBeVisible();
+  // Two at a time, rolling through the latest songs.
+  const peek = intro.getByLabel("Live feed preview");
+  await expect(peek.getByText(/Sarah added “Toxic” to mile 7/)).toBeVisible();
+  await expect(peek.getByText(/Ana added “Float On” to mile 3/)).toHaveCount(0);
+  await expect(peek.getByText(/Ana added “Float On” to mile 3/)).toBeVisible({ timeout: 8_000 });
+  await expect(intro.getByText("Get started")).toBeVisible();
   await expect(intro.getByRole("button", { name: "Close" })).toHaveCount(0);
   await page.keyboard.press("Escape");
   await page.mouse.click(10, 10);
@@ -340,19 +367,19 @@ test("adding a song plays a cowbell and a little cheer, and Sound off keeps it q
   const heard = () => page.evaluate(() => (window as unknown as { sounds: string[] }).sounds);
   const race = await createRace(request);
   await openMap(page, race.id);
-  expect(await heard()).toEqual(["cowbell"]); // "Let's go"
+  expect(await heard()).toEqual(["welcome"]); // "Let's go"
 
   await typeSong(page, "Juice", "Lizzo");
   await dragSongTo(page, 9);
   await expect(page.getByRole("status")).toContainText("Added to Mile 9");
-  expect(await heard()).toEqual(["cowbell", "cowbell", "cheer"]);
+  expect(await heard()).toEqual(["welcome", "cowbell", "cheer"]);
 
   await page.getByRole("button", { name: "🔔 Sound on" }).click();
   await expect(page.getByRole("button", { name: "🔕 Sound off" })).toHaveAttribute("aria-pressed", "false");
   await typeSong(page, "Toxic", "Britney Spears");
   await dragSongTo(page, 10);
   await expect(page.getByRole("status")).toContainText("Added to Mile 10");
-  expect(await heard()).toEqual(["cowbell", "cowbell", "cheer"]);
+  expect(await heard()).toEqual(["welcome", "cowbell", "cheer"]);
 
   // Remembered on this device.
   await page.reload();
@@ -415,20 +442,7 @@ test("resting on a search result opens Spotify's preview player for it", async (
 test("▶ on a search result plays the song's preview clip straight away", async ({ page, request }) => {
   const race = await createRace(request);
   // A one-second silent clip stands in for Spotify's 30-second preview.
-  const wav = Buffer.alloc(44 + 8000);
-  wav.write("RIFF", 0);
-  wav.writeUInt32LE(36 + 8000, 4);
-  wav.write("WAVEfmt ", 8);
-  wav.writeUInt32LE(16, 16);
-  wav.writeUInt16LE(1, 20);
-  wav.writeUInt16LE(1, 22);
-  wav.writeUInt32LE(8000, 24);
-  wav.writeUInt32LE(8000, 28);
-  wav.writeUInt16LE(1, 32);
-  wav.writeUInt16LE(8, 34);
-  wav.write("data", 36);
-  wav.writeUInt32LE(8000, 40);
-  wav.fill(128, 44);
+  const wav = silentWav(1);
   const asked: string[] = [];
   await page.route("**/api/songs/preview**", (route) => {
     asked.push(new URL(route.request().url()).searchParams.get("title") ?? "");
@@ -473,4 +487,29 @@ test("link previews are personalized", async ({ request }) => {
   const img = await request.get(`/r/${race.id}/opengraph-image`);
   expect(img.status()).toBe(200);
   expect(img.headers()["content-type"]).toBe("image/png");
+});
+
+test("the song you're holding plays while you drag it, then the crowd roars as you drop it", async ({ page, request }) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as { sounds: string[] };
+    w.sounds = [];
+    window.addEventListener("pp:sound", (e) => w.sounds.push((e as CustomEvent<string>).detail));
+  });
+  const heard = () => page.evaluate(() => (window as unknown as { sounds: string[] }).sounds);
+  await page.route("**/api/songs/preview**", (route) => route.fulfill({ json: { url: "/held.wav" } }));
+  await page.route("**/held.wav", (route) => route.fulfill({ body: silentWav(20), contentType: "audio/wav" }));
+  const race = await createRace(request);
+  await openMap(page, race.id);
+  await typeSong(page, "Juice", "Lizzo");
+  await expect.poll(heard).toEqual(["welcome", "preview"]);
+  await dragSongTo(page, 9);
+  await expect(page.getByRole("status")).toContainText("Added to Mile 9");
+  // No cowbells this time: the clip fades out under the roar.
+  expect(await heard()).toEqual(["welcome", "preview", "roar"]);
+
+  // Put back without adding: just stops.
+  await typeSong(page, "Toxic", "Britney Spears");
+  await expect.poll(heard).toEqual(["welcome", "preview", "roar", "preview"]);
+  await page.getByRole("button", { name: "Put this song back" }).click();
+  await expect(page.getByRole("button", { name: "Drag Toxic onto a mile" })).toHaveCount(0);
 });

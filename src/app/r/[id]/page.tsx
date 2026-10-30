@@ -22,7 +22,7 @@ async function Dynamic() {
 
 export default function RegistryPage() {
   return (
-    <Shell>
+    <Shell cta={false}>
       <Suspense fallback={<p className="pt-10 text-pink/60">Loading…</p>}>
         <Registry />
       </Suspense>
