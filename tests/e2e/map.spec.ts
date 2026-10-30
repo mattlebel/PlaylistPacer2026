@@ -26,6 +26,13 @@ test("a friend drags a song onto a mile", async ({ page, request }) => {
   const sheet = page.getByRole("dialog", { name: "Mile 15 · Queensboro Bridge" });
   await expect(sheet.getByText("The Killers · from Dana")).toBeVisible();
   await expect(sheet.getByText("Open spot")).toHaveCount(2);
+  // The coach's notes on this stretch, credited.
+  const notes = sheet.getByRole("region", { name: "Coach's notes" });
+  await expect(notes.getByText(/Silvercup Studios/)).toBeVisible();
+  await expect(notes.getByText(/toughest hill on the course/)).toHaveCount(0);
+  await notes.getByRole("button", { name: "Read more" }).click();
+  await expect(notes.getByText(/toughest hill on the course/)).toBeVisible();
+  await expect(notes.getByText("Course notes by coach Stuart Calderwood")).toBeVisible();
   await sheet.getByRole("button", { name: "Remove mine" }).click();
   await expect(page.getByRole("status")).toHaveText("Removed your song.");
   await expect(sheet.getByText("Open spot")).toHaveCount(3);
@@ -40,9 +47,9 @@ test("you can pick a mile without dragging", async ({ page, request }) => {
   const race = await createRace(request);
   await openMap(page, race.id);
   await typeSong(page, "Juice", "Lizzo");
-  await page.getByLabel("Or choose a mile").selectOption({ label: "Mile 8 · Barclays Center & Lafayette Ave (3 left)" });
+  await page.getByLabel("Or choose a mile").selectOption({ label: "Mile 8 · Barclays & the Bank Tower (3 left)" });
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Added to Mile 8 · Barclays Center & Lafayette Ave");
+  await expect(page.getByRole("status")).toHaveText("Added to Mile 8 · Barclays & the Bank Tower");
 
   // Or tap a mile and add straight from its popup.
   await page.getByRole("list", { name: "Miles along the course" }).getByRole("button", { name: /^Mile 20, The Bronx/ }).click();
@@ -87,14 +94,14 @@ test("skipping the name in the welcome popup brings it back when you add a song"
   await page.goto(`/r/${race.id}`);
   await page.getByRole("dialog", { name: "How it works" }).getByRole("button", { name: "Close" }).click();
   await typeSong(page, "Juice", "Lizzo");
-  await page.getByLabel("Or choose a mile").selectOption({ label: "Mile 9 · Clinton Hill (3 left)" });
+  await page.getByLabel("Or choose a mile").selectOption({ label: "Mile 9 · Bed-Stuy (3 left)" });
   await page.getByRole("button", { name: "Add", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Add your name first, so Matt knows who picked it.");
   const intro = page.getByRole("dialog", { name: "How it works" });
   await intro.getByLabel("First, what's your name?").fill("Jules");
   await intro.getByRole("button", { name: "Let's go" }).click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Added to Mile 9 · Clinton Hill");
+  await expect(page.getByRole("status")).toHaveText("Added to Mile 9 · Bed-Stuy");
   await expect(page.getByText("from Jules")).toBeVisible();
 });
 

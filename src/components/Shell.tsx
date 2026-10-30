@@ -17,7 +17,7 @@ export function Shell({ children, cta = true }: { children: ReactNode; cta?: boo
       </header>
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-20 sm:px-6">{children}</main>
       <footer className="border-t border-pink/15 px-6 py-6 text-center font-mono text-[10px] text-pink/50">
-        Playlist Pacer · made for the NYC Marathon · not affiliated with NYRR or Spotify
+        Playlist Pacer · made for the NYC Marathon · course notes by coach Stuart Calderwood · not affiliated with NYRR or Spotify
       </footer>
     </div>
   );

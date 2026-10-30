@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import { api, ApiError, type Registry as RegistryData } from "@/lib/client/api";
 import { editKeys, rememberEditKey } from "@/lib/client/keys";
 import { confetti } from "@/lib/confetti";
+import { COURSE_NOTES, COURSE_NOTES_CREDIT } from "@/lib/courseNotes";
 import { MILES, mileByN, mileLabel, RACE } from "@/lib/race";
 import { spotifyTrackUrl } from "@/lib/spotify";
 import type { Song } from "@/lib/types";
@@ -646,6 +647,32 @@ function MileSheet({
           )}
         </div>
       )}
+
+      <CoachNotes mile={mile.n} />
     </Modal>
+  );
+}
+
+/** The coach's notes on what's happening around this mile: the first paragraph, with the rest a tap away. */
+function CoachNotes({ mile }: { mile: number }) {
+  const notes = COURSE_NOTES[mile];
+  const [more, setMore] = useState(false);
+  if (!notes?.length) return null;
+  const shown = more ? notes : notes.slice(0, 1);
+  return (
+    <section className="mt-6 border-t border-pink/15 pt-5" aria-label="Coach's notes">
+      <div className="label mb-2">From the coach</div>
+      <div className="space-y-3 text-sm leading-relaxed text-blush/90">
+        {shown.map((p) => (
+          <p key={p.slice(0, 32)}>{p}</p>
+        ))}
+      </div>
+      {notes.length > 1 && (
+        <button className="mt-2 text-sm font-semibold underline underline-offset-4 hover:text-chalk" onClick={() => setMore(!more)}>
+          {more ? "Show less" : "Read more"}
+        </button>
+      )}
+      <p className="mt-3 font-mono text-[10px] text-pink/50">{COURSE_NOTES_CREDIT}</p>
+    </section>
   );
 }

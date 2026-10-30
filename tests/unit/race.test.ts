@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ADDING_CLOSES_AT, fmtTimeOfDay, LEGACY_MOMENT_MILE, MILES, mileByN, mileLabel, RACE, raceCourse, SONGS_PER_MILE } from "@/lib/race";
 import { METERS_PER_MILE } from "@/lib/geo";
+import { COURSE_NOTES, COURSE_NOTES_CREDIT } from "@/lib/courseNotes";
 
 describe("NYC Marathon miles", () => {
   it("has a marker for the start and every mile through 26", () => {
@@ -39,6 +40,18 @@ describe("NYC Marathon miles", () => {
       perMile.set(n, (perMile.get(n) ?? 0) + 1);
     }
     for (const count of perMile.values()) expect(count).toBeLessThanOrEqual(SONGS_PER_MILE);
+  });
+});
+
+describe("coach's course notes", () => {
+  it("are attached to real miles, credited, and cover the big moments", () => {
+    for (const [n, notes] of Object.entries(COURSE_NOTES)) {
+      expect(mileByN(Number(n)), `mile ${n}`).toBeDefined();
+      expect(notes.length).toBeGreaterThan(0);
+      for (const p of notes) expect(p.trim().length).toBeGreaterThan(40);
+    }
+    for (const m of MILES.filter((x) => x.landmark)) expect(COURSE_NOTES[m.n], `landmark mile ${m.n}`).toBeDefined();
+    expect(COURSE_NOTES_CREDIT).toBe("Course notes by coach Stuart Calderwood");
   });
 });
 

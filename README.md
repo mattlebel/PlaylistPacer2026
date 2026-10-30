@@ -35,7 +35,9 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
 Songs from the first version of the app (one song per named "moment") are moved onto the matching
 mile automatically when the server starts. `tests/unit/repo.test.ts` covers that upgrade.
 
-The miles and their landmark notes are in `src/lib/race.ts`. The NYC course comes from a real GPS
+The miles and their landmark notes are in `src/lib/race.ts`. Each mile's popup also has longer notes
+on that stretch of the course by coach Stuart Calderwood (`src/lib/courseNotes.ts`), credited in the
+popup and in the page footer. The NYC course comes from a real GPS
 track of the 2025 race, scaled to the certified 42,195 m and stored as positions plus elevation only.
 On the map, markers sit beside the course, on whichever side covers the least of the route and the
 other markers. On small screens they shrink to numbered dots with a ring that fills as songs are added.

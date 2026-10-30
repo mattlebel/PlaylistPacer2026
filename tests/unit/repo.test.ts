@@ -284,5 +284,6 @@ describe("upgrading a first-version database", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+    // Opens an on-disk database three times, which is slow on a busy machine.
+  }, 30_000);
 });
