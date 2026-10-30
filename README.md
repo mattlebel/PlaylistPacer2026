@@ -55,9 +55,16 @@ The miles and their landmark notes are in `src/lib/race.ts`. Each mile's popup a
 on that stretch of the course by coach Stuart Calderwood (`src/lib/courseNotes.ts`), credited in the
 popup and in the page footer. The NYC course comes from a real GPS
 track of the 2025 race, scaled to the certified 42,195 m and stored as positions plus elevation only.
-The map uses CARTO's Dark Matter, a muted grayscale street map. Under it sit the five boroughs'
-outlines (`src/lib/courses/nyc-boroughs.json`, from NYC Department of City Planning boundaries), so
-if the street map can't load the course still shows on grayscale land and water with borough names.
+**The street map ships with the app.** `public/basemap` holds the map for the course area (552 small
+tiles, zooms 9–14, about 11 MB) from [OpenFreeMap](https://openfreemap.org) (OpenStreetMap data),
+trimmed to water, parks, streets and airports and drawn in muted grays by `src/lib/basemapStyle.ts`.
+No labels, so no fonts or icons: the map makes no requests to anyone else, and panning stays around
+that area. To refresh it, run the **Update basemap** workflow in GitHub Actions (it runs
+`scripts/fetch-basemap.mjs` and commits the result).
+
+If those files are missing, the map falls back to CARTO's hosted Dark Matter, and failing that to
+the five boroughs' outlines (`src/lib/courses/nyc-boroughs.json`, from NYC Department of City
+Planning) on grayscale land and water with borough names.
 
 On the map, markers sit beside the course, on whichever side covers the least of the route and the
 other markers. On small screens they shrink to numbered dots with a ring that fills as songs are added.

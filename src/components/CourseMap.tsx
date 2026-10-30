@@ -4,6 +4,7 @@ import { Map as MLMap, Marker, NavigationControl, setWorkerUrl, type ExpressionS
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { createPortal } from "react-dom";
 import { bounds, makePointLookup } from "@/lib/geo";
+import { basemapStyle, type BasemapMeta } from "@/lib/basemapStyle";
 import { MILES, mileLabel, RACE, raceCourse } from "@/lib/race";
 import { ChipStack } from "./ChipStack";
 
@@ -28,17 +29,36 @@ const BOROUGH_LABELS: [string, number, number][] = [
   ["The Bronx", 40.836, -73.884],
 ];
 
-async function loadStyle(): Promise<StyleSpecification | string> {
+async function fetchWithin(url: string, ms: number) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
   try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 4000);
-    const res = await fetch(STYLE_URL, { signal: ctrl.signal });
+    return await fetch(url, { signal: ctrl.signal });
+  } finally {
     clearTimeout(t);
-    if (res.ok) return STYLE_URL;
-  } catch {
-    /* offline or blocked: a plain background still shows the route */
   }
-  return FALLBACK;
+}
+
+/**
+ * The map background, best first: the app's own static street map for the course area (public/basemap),
+ * then CARTO's hosted Dark Matter, then plain grayscale borough outlines.
+ */
+async function loadStyle(): Promise<{ style: StyleSpecification | string; bounds?: BasemapMeta["bounds"]; minzoom?: number }> {
+  try {
+    const res = await fetchWithin("/basemap/basemap.json", 4000);
+    if (res.ok) {
+      const meta = (await res.json()) as BasemapMeta;
+      return { style: basemapStyle(window.location.origin, meta), bounds: meta.bounds, minzoom: meta.minzoom };
+    }
+  } catch {
+    /* not shipped with this build: try the hosted map */
+  }
+  try {
+    if ((await fetchWithin(STYLE_URL, 4000)).ok) return { style: STYLE_URL };
+  } catch {
+    /* offline or blocked: the borough outlines still show the route */
+  }
+  return { style: FALLBACK };
 }
 
 /** Marker sizes in px. Full cards show the chip stack; compact dots are for zoomed-out views like a phone. */
@@ -290,12 +310,17 @@ export function CourseMap({
     const course = raceCourse();
     // Served from /public (see scripts/copy-maplibre-worker.mjs).
     setWorkerUrl("/vendor/maplibre-gl-worker.mjs");
-    loadStyle().then((style) => {
+    loadStyle().then(({ style, bounds: area, minzoom }) => {
       if (disposed || !box.current) return;
       const m = new MLMap({
         container: box.current,
         style,
         bounds: bounds(course),
+        // With the static map, stay around the area it covers. (The overview's tiles reach a bit past it,
+        // and wide screens need the room.)
+        maxBounds: area ? [area[0] - 0.12, area[1] - 0.06, area[2] + 0.12, area[3] + 0.06] : undefined,
+        minZoom: minzoom,
+        maxZoom: 16,
         fitBoundsOptions: { padding: PADDING },
         attributionControl: { compact: true },
         dragRotate: false,
@@ -306,14 +331,19 @@ export function CourseMap({
       m.touchZoomRotate.disableRotation();
       m.addControl(new NavigationControl({ showCompass: false }), "top-right");
       m.on("load", async () => {
+        // Start the map credit folded into its (i) button, so it doesn't cover the start of the course.
+        m.getContainer().querySelector(".maplibregl-ctrl-attrib")?.classList.remove("maplibregl-compact-show");
         // The five boroughs, under everything. With the street map loaded, its own land and water cover
         // these; if its tiles don't arrive, the outlines still show where the course is.
-        const land = (await import("@/lib/courses/nyc-boroughs.json")).default as GeoJSON.FeatureCollection;
-        if (disposed) return;
-        const above = m.getStyle().layers[1]?.id;
-        m.addSource("land", { type: "geojson", data: land });
-        m.addLayer({ id: "land", type: "fill", source: "land", paint: { "fill-color": LAND } }, above);
-        m.addLayer({ id: "land-edge", type: "line", source: "land", paint: { "line-color": "#3a3d4a", "line-width": 0.8 } }, above);
+        // (The static map has its own land and water, so it doesn't need them.)
+        if (!area) {
+          const land = (await import("@/lib/courses/nyc-boroughs.json")).default as GeoJSON.FeatureCollection;
+          if (disposed) return;
+          const above = m.getStyle().layers[1]?.id;
+          m.addSource("land", { type: "geojson", data: land });
+          m.addLayer({ id: "land", type: "fill", source: "land", paint: { "fill-color": LAND } }, above);
+          m.addLayer({ id: "land-edge", type: "line", source: "land", paint: { "line-color": "#3a3d4a", "line-width": 0.8 } }, above);
+        }
         if (style === FALLBACK) {
           const labels = BOROUGH_LABELS.map(([name, lat, lon]) => {
             const el = document.createElement("div");
