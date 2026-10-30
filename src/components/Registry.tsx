@@ -8,13 +8,14 @@ import { api, ApiError, type Registry as RegistryData } from "@/lib/client/api";
 import { editKeys, rememberEditKey } from "@/lib/client/keys";
 import { confetti } from "@/lib/confetti";
 import { COURSE_NOTES, COURSE_NOTES_CREDIT } from "@/lib/courseNotes";
-import { etaAtMile, finishEta, fmtPace, fmtTimeOfDay, MILES, mileByN, mileLabel, RACE, startHhmm, waveLabel } from "@/lib/race";
+import { etaAtMile, finishEta, fmtPace, fmtTimeOfDay, MILES, mileByN, mileInSentence, mileLabel, RACE, startHhmm, waveLabel } from "@/lib/race";
 import { songKey } from "@/lib/songKey";
 import { cheer, cowbell, setSoundOn, soundOn } from "@/lib/sounds";
 import { spotifyTrackUrl } from "@/lib/spotify";
 import type { Song } from "@/lib/types";
 import { SpotifyIcon } from "./brand";
 import { Bib } from "./Bib";
+import { DragOntoAMile, FindASong, HearItOutThere } from "./HowItWorks";
 import { ChipStack } from "./ChipStack";
 import { CourseMap, type CourseMapHandle, type MarkerState } from "./CourseMap";
 import { SongSearch } from "./SongSearch";
@@ -239,7 +240,7 @@ export function Registry() {
     if (!data) return;
     const runnerFirst = first(data.runnerName);
     const url = `${window.location.origin}/r/${data.id}`;
-    const text = `I put “${song.title}” on ${runnerFirst}'s ${mileLabel(mile).toLowerCase()} (${mileByN(mile)?.title}) of the NYC Marathon 🎵 Add a song for them:`;
+    const text = `I put “${song.title}” on ${runnerFirst}'s ${mileInSentence(mile)} (${mileByN(mile)?.title}) of the NYC Marathon 🎵 Add a song for them:`;
     try {
       if (navigator.share) await navigator.share({ title: `Help ${runnerFirst} soundtrack 26.2`, text, url });
       else {
@@ -529,16 +530,21 @@ export function Registry() {
 
       <Modal open={howto} onClose={closeHowto} title="How it works">
         <ol className="space-y-4">
-          {[
-            ["Find a song", "Search for something that'll get them moving."],
-            ["Drag it onto a mile", `Drop it on a marker on ${runner}'s course, like the Queensboro Bridge or mile 20 in the Bronx. Each mile holds ${data.perMile} songs.`],
-            [`${runner} hears it out there`, `Every song goes into ${runner}'s race-day playlist in course order. Add as many as you like: there are ${capacity} spots to fill, and the map updates live.`],
-          ].map(([t, d], i) => (
-            <li key={t} className="flex gap-4">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-pink font-display text-lg font-bold text-ink">{i + 1}</span>
-              <div>
-                <div className="font-display text-xl font-bold">{t}</div>
-                <p className="text-blush">{d}</p>
+          {(
+            [
+              ["Find a song", "Search for something that'll get them moving.", <FindASong key="1" />],
+              ["Drag it onto a mile", `Drop it on a marker on ${runner}'s course, like the Queensboro Bridge or mile 20 in the Bronx. Each mile holds ${data.perMile} songs.`, <DragOntoAMile key="2" />],
+              [`${runner} hears it out there`, `Every song goes into ${runner}'s race-day playlist in course order. Add as many as you like: there are ${capacity} spots to fill.`, <HearItOutThere key="3" />],
+            ] as const
+          ).map(([t, d, art], i) => (
+            <li key={t} className="flex items-center gap-4">
+              {art}
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-pink font-display text-sm font-bold text-ink">{i + 1}</span>
+                  <span className="font-display text-xl font-bold leading-tight">{t}</span>
+                </div>
+                <p className="mt-1 text-sm leading-relaxed text-blush">{d}</p>
               </div>
             </li>
           ))}
@@ -800,7 +806,7 @@ function MileSheet({
         <div className="min-w-0">
           <p className="text-blush">{info.note}</p>
           <p className="mt-1 text-sm text-chalk">
-            {runner} {mile.n === 0 ? "starts" : "passes here"} around {eta}
+            {runner} {mile.n === 0 ? "starts" : mile.n === 26 ? "starts the final stretch" : "passes here"} around {eta}
           </p>
           <p className="mt-2 font-mono text-[11px] uppercase">
             {mile.songs.length} of {perMile} songs · {room > 0 ? `${room} ${room === 1 ? "spot" : "spots"} open` : "full"}
@@ -872,7 +878,7 @@ function MileSheet({
             </button>
           ) : (
             <>
-              <div className="label mb-2">Add a song to {mile.n === 0 ? "the start" : `mile ${mile.n}`}</div>
+              <div className="label mb-2">Add a song to {mileInSentence(mile.n)}</div>
               <SongSearch onPick={onAdd} taken={taken} />
             </>
           )}
@@ -978,7 +984,7 @@ function Activity({ recent, runner, offset }: { recent: RegistryData["recent"]; 
   return (
     <p className="mt-3 truncate text-sm text-blush" aria-live="polite">
       <span aria-hidden>🎵 </span>
-      <strong className="font-semibold text-chalk">{who}</strong> added “{r.title}” to {r.mile === 0 ? "the start" : `mile ${r.mile}`}
+      <strong className="font-semibold text-chalk">{who}</strong> added “{r.title}” to {mileInSentence(r.mile)}
       <span className="text-pink/60"> · {ago(now - new Date(r.at).getTime())}</span>
     </p>
   );
@@ -1003,13 +1009,28 @@ function Feed({ recent, runner, offset, onOpen }: { recent: RegistryData["recent
           <AnimatePresence initial={false}>
             {recent.map((r) => (
               <motion.li key={r.id} layout initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
-                <button className="w-full rounded-xl px-2 py-1.5 text-left text-sm leading-snug hover:bg-ink/25" onClick={() => onOpen(r.mile)}>
-                  <span className="line-clamp-2">
-                    <strong className="font-semibold text-chalk">{r.from ?? (r.isRunner ? runner : "Someone")}</strong> added “{r.title}” to{" "}
-                    {r.mile === 0 ? "the start" : `mile ${r.mile}`}
-                  </span>
-                  {now !== null && <span className="block font-mono text-[10px] text-pink/50">{ago(now - new Date(r.at).getTime())}</span>}
-                </button>
+                <div className="flex items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-ink/25">
+                  {r.art && r.spotifyId ? (
+                    <a href={spotifyTrackUrl(r.spotifyId)} target="_blank" rel="noreferrer" aria-label={`Play ${r.title} on Spotify`} className="h-10 w-10 shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={r.art} alt="" className="h-full w-full rounded-[4px] object-cover" />
+                    </a>
+                  ) : (
+                    <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-[4px] bg-ink-3">♪</span>
+                  )}
+                  <button className="min-w-0 flex-1 text-left text-sm leading-snug" onClick={() => onOpen(r.mile)}>
+                    <span className="line-clamp-2">
+                      <strong className="font-semibold text-chalk">{r.from ?? (r.isRunner ? runner : "Someone")}</strong> added “{r.title}” to{" "}
+                      {mileInSentence(r.mile)}
+                    </span>
+                    {now !== null && <span className="block font-mono text-[10px] text-pink/50">{ago(now - new Date(r.at).getTime())}</span>}
+                  </button>
+                  {r.spotifyId && (
+                    <a href={spotifyTrackUrl(r.spotifyId)} target="_blank" rel="noreferrer" className="shrink-0 p-1 text-pink/60 hover:text-chalk" aria-label={`Open ${r.title} on Spotify`}>
+                      <SpotifyIcon size={14} />
+                    </a>
+                  )}
+                </div>
               </motion.li>
             ))}
           </AnimatePresence>

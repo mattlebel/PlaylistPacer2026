@@ -23,10 +23,7 @@ export function ChipStack({ count, max, size = "md", className = "" }: { count: 
             style={{
               width: s.w,
               height: s.h,
-              background: on
-                ? // Chip edge stripes, like the side of a casino chip.
-                  `repeating-linear-gradient(90deg, ${COLORS[i % COLORS.length]} 0 ${s.w / 6}px, rgb(14 14 20 / 0.55) ${s.w / 6}px ${s.w / 6 + 1.5}px)`
-                : "transparent",
+              background: on ? COLORS[i % COLORS.length] : "transparent",
               boxShadow: on ? "0 1.5px 0 rgb(0 0 0 / 0.45)" : `inset 0 0 0 1px rgb(247 211 216 / 0.28)`,
             }}
           />

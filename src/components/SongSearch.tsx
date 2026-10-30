@@ -3,6 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { searchSongs } from "@/lib/client/api";
 import { suggestSongs } from "@/lib/popularSongs";
+import { mileInSentence } from "@/lib/race";
 import { songKey } from "@/lib/songKey";
 import { spotifyTrackUrl } from "@/lib/spotify";
 import type { Song } from "@/lib/types";
@@ -171,7 +172,7 @@ export function SongSearch({
                       {s.title}
                     </span>
                     <span className="block truncate text-sm text-pink/70" title={s.artist}>
-                      {on !== undefined ? `Already on ${on === 0 ? "the start" : `mile ${on}`}` : s.artist}
+                      {on !== undefined ? `Already on ${mileInSentence(on)}` : s.artist}
                     </span>
                   </span>
                 </button>

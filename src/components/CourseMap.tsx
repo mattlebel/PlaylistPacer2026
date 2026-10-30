@@ -5,7 +5,7 @@ import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref
 import { createPortal } from "react-dom";
 import { bounds, makePointLookup } from "@/lib/geo";
 import { basemapStyle, type BasemapMeta } from "@/lib/basemapStyle";
-import { MILES, mileLabel, RACE, raceCourse } from "@/lib/race";
+import { FINISH_MILE, MILES, mileLabel, RACE, raceCourse } from "@/lib/race";
 import { ChipStack } from "./ChipStack";
 
 /** CARTO's Dark Matter: a muted, grayscale street map. */
@@ -78,10 +78,13 @@ interface Rect {
   x1: number;
   y1: number;
 }
-const rectAt = (mode: Mode, cx: number, cy: number, pad = 0): Rect => ({
-  x0: cx - SIZES[mode].w / 2 - pad,
-  y0: cy - SIZES[mode].h / 2 - pad,
-  x1: cx + SIZES[mode].w / 2 + pad,
+/** The start and finish markers wear a START/FINISH tag above them, which needs room too. */
+const TAG_H = 14;
+const tagged = (i: number) => MILES[i].n === 0 || MILES[i].n === FINISH_MILE;
+const rectAt = (mode: Mode, cx: number, cy: number, pad = 0, tag = false): Rect => ({
+  x0: cx - SIZES[mode].w / 2 - pad - (tag ? 8 : 0),
+  y0: cy - SIZES[mode].h / 2 - pad - (tag ? TAG_H : 0),
+  x1: cx + SIZES[mode].w / 2 + pad + (tag ? 8 : 0),
   y1: cy + SIZES[mode].h / 2 + pad,
 });
 const overlap = (a: Rect, b: Rect) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
@@ -107,13 +110,13 @@ function placeCards(map: MLMap): { mode: Mode; offsets: Offset[] } {
 
   const costOf = (i: number, o: Offset, placed: (Offset | null)[]) => {
     const a = anchors[i];
-    const r = rectAt(mode, a.x + o.dx, a.y + o.dy, 3);
+    const r = rectAt(mode, a.x + o.dx, a.y + o.dy, 3, tagged(i));
     let cost = 0;
     for (const p of route) if (p.x > r.x0 && p.x < r.x1 && p.y > r.y0 && p.y < r.y1) cost += 6;
     anchors.forEach((b, j) => {
       if (j !== i && b.x > r.x0 && b.x < r.x1 && b.y > r.y0 && b.y < r.y1) cost += 60;
       const po = placed[j];
-      if (j !== i && po) cost += overlap(r, rectAt(mode, b.x + po.dx, b.y + po.dy, 2)) * 6;
+      if (j !== i && po) cost += overlap(r, rectAt(mode, b.x + po.dx, b.y + po.dy, 2, tagged(j))) * 6;
     });
     if (r.x0 < 4 || r.y0 < 4 || r.x1 > W - 4 || r.y1 > H - 4) cost += 400;
     return cost;
@@ -494,6 +497,16 @@ export function CourseMap({
   );
 }
 
+/** Green flag at the start, red at the finish. */
+export function Flag({ kind, size = 11 }: { kind: "start" | "finish"; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 12 12" aria-hidden className="shrink-0">
+      <path d="M2 1v10.5" stroke="#F7D3D8" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M2.6 1.4h7.2L8.2 4l1.6 2.6H2.6z" fill={kind === "start" ? "#3FD17A" : "#FF5A5F"} />
+    </svg>
+  );
+}
+
 function MarkerCard({
   n,
   title,
@@ -520,6 +533,7 @@ function MarkerCard({
 }) {
   const full = state.count >= perMile;
   const { w, h } = SIZES[mode];
+  const flag = n === 0 ? "start" : n === FINISH_MILE ? "finish" : null;
   const len = Math.hypot(offset.dx, offset.dy);
   const angle = (Math.atan2(offset.dy, offset.dx) * 180) / Math.PI;
   return (
@@ -554,9 +568,19 @@ function MarkerCard({
         }`}
         style={{ width: w, height: h, left: offset.dx - w / 2, top: offset.dy - h / 2 }}
       >
+        {flag && (
+          <span
+            aria-hidden
+            className={`pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full font-mono font-bold uppercase text-ink shadow-[0_2px_6px_rgb(8_10_40/0.5)] ${
+              flag === "start" ? "bg-[#3FD17A]" : "bg-[#FF5A5F]"
+            } ${mode === "full" ? "mb-[3px] px-1.5 py-[1px] text-[7.5px] tracking-wider" : "mb-[2px] px-1 text-[6px] tracking-normal"}`}
+          >
+            {flag}
+          </span>
+        )}
         {mode === "full" ? (
           <>
-            <span className={`font-mono text-[9px] font-semibold leading-none ${full ? "text-chalk" : "text-pink"}`}>{n === 0 ? "GO" : n}</span>
+            {flag ? <Flag kind={flag} /> : <span className={`font-mono text-[9px] font-semibold leading-none ${full ? "text-chalk" : "text-pink"}`}>{n}</span>}
             <ChipStack count={state.count} max={perMile} size="sm" />
           </>
         ) : (
@@ -570,10 +594,16 @@ function MarkerCard({
                 mask: "radial-gradient(circle, transparent 6.5px, #000 7px)",
               }}
             />
-            <span className={`relative font-mono text-[8px] font-semibold leading-none ${full ? "text-chalk" : "text-pink"}`}>{n === 0 ? "GO" : n}</span>
+            {flag ? (
+              <span className="relative">
+                <Flag kind={flag} size={10} />
+              </span>
+            ) : (
+              <span className={`relative font-mono text-[8px] font-semibold leading-none ${full ? "text-chalk" : "text-pink"}`}>{n}</span>
+            )}
           </>
         )}
-        {landmark && <span aria-hidden className="absolute -right-1.5 -top-1.5 text-[10px] leading-none text-butter">★</span>}
+        {landmark && !flag && <span aria-hidden className="absolute -right-1.5 -top-1.5 text-[10px] leading-none text-butter">★</span>}
       </button>
     </>
   );

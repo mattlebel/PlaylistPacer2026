@@ -6,6 +6,10 @@ test("a friend drags a song onto a mile", async ({ page, request }) => {
   await expect(page.getByRole("heading", { name: "Help Matt soundtrack 26.2" })).toBeVisible();
   const intro = page.getByRole("dialog", { name: "How it works" });
   await expect(intro.getByText("Drag it onto a mile")).toBeVisible();
+  // Each step has a little animation.
+  await expect(intro.getByRole("img", { name: "Typing a song into the search box and picking a result" })).toBeVisible();
+  await expect(intro.getByRole("img", { name: "Dragging a song bubble onto a mile marker" })).toBeVisible();
+  await expect(intro.getByRole("img", { name: "The runner reaches the mile and the song plays" })).toBeVisible();
   // The welcome popup asks who you are before you start.
   await expect(intro.getByRole("button", { name: "Let's go" })).toBeDisabled();
   await intro.getByLabel("First, what's your name?").fill("Dana Scully");
@@ -120,10 +124,10 @@ test("full miles and repeat songs are refused", async ({ page, request }) => {
 test("the map updates live as other people add songs", async ({ page, request }) => {
   const race = await createRace(request);
   await openMap(page, race.id);
-  await expect(marker(page, 26)).toHaveAccessibleName("Mile 26, The finish: 0 of 3 songs");
+  await expect(marker(page, 26)).toHaveAccessibleName("Finish, Tavern on the Green: 0 of 3 songs");
   await addViaApi(request, race.id, { mile: 26, name: "Mom", song: song("Don't Stop Me Now", "Queen") });
-  await expect(marker(page, 26)).toHaveAccessibleName("Mile 26, The finish: 1 of 3 songs", { timeout: 15_000 });
-  await expect(page.getByRole("region", { name: "Live feed" }).getByText(/Mom added “Don't Stop Me Now” to mile 26/)).toBeVisible();
+  await expect(marker(page, 26)).toHaveAccessibleName("Finish, Tavern on the Green: 1 of 3 songs", { timeout: 15_000 });
+  await expect(page.getByRole("region", { name: "Live feed" }).getByText(/Mom added “Don't Stop Me Now” to the finish/)).toBeVisible();
 });
 
 test("skipping the name in the welcome popup brings it back when you add a song", async ({ page, request }) => {
@@ -318,7 +322,7 @@ test("after adding, it's clear you can keep going", async ({ page, request }) =>
   // The miles that still need a song, landmarks first.
   const needs = page.getByRole("button", { name: /^Add a song to / });
   await expect(needs).toHaveCount(3);
-  await expect(needs.first()).toHaveAccessibleName("Add a song to Start, The start");
+  await expect(needs.first()).toHaveAccessibleName("Add a song to Start, Staten Island");
 
   await typeSong(page, "Juice", "Lizzo");
   await dragSongTo(page, 0);
@@ -348,6 +352,21 @@ test("resting on a search result opens Spotify's preview player for it", async (
   await expect(page.getByText("Preview · Mr. Brightside - Remastered")).toBeVisible();
   await page.getByRole("button", { name: "Preview Mr. Brightside - Remastered" }).click();
   await expect(page.getByText(/^Preview · /)).toHaveCount(0);
+});
+
+test("the start and finish markers are flagged, and the live feed shows album art", async ({ page, request }) => {
+  const race = await createRace(request);
+  await addViaApi(request, race.id, {
+    mile: 26,
+    name: "Dad",
+    song: { ...song("Don't Stop Me Now", "Queen", "q"), art: "https://i.scdn.co/image/test" } as ReturnType<typeof song>,
+  });
+  await openMap(page, race.id);
+  await expect(marker(page, 0)).toContainText(/start/i);
+  await expect(marker(page, 26)).toContainText(/finish/i);
+  await expect(page.locator(".maplibregl-marker").getByText("GO", { exact: true })).toHaveCount(0);
+  const feed = page.getByRole("region", { name: "Live feed" });
+  await expect(feed.getByRole("link", { name: "Play Don't Stop Me Now on Spotify" }).locator("img")).toHaveAttribute("src", "https://i.scdn.co/image/test");
 });
 
 test("link previews are personalized", async ({ request }) => {

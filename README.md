@@ -11,8 +11,10 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
 - **Runner:** go to `/new`, type your name, and get two links:
   - a **share link** (`/r/<id>`)
   - a **private link** (`/r/<id>/manage#key=…`)
-- **Friends:** open the share link and see a quick "how it works" popup, then:
-  - The map shows 27 markers (the start and miles 1–26). Each marker is a stack of up to 3 chips
+- **Friends:** open the share link and see a "how it works" popup (each step has a small looping SVG
+  animation, `src/components/HowItWorks.tsx`), then:
+  - The map shows 27 markers: START (green flag), miles 1–25, and FINISH (red flag, mile 26 to the
+    line). Each marker is a stack of up to 3 chips
     showing how full that mile is, and the big landmarks get a star.
   - Type in one search box and pick a suggestion, and it becomes a bubble you drag onto a marker.
     Suggestions come from Spotify when it's set up (searches are cached on the server for a few hours),

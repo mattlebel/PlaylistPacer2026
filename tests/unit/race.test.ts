@@ -47,6 +47,9 @@ describe("NYC Marathon miles", () => {
   it("labels miles", () => {
     expect(mileLabel(0)).toBe("Start");
     expect(mileLabel(15)).toBe("Mile 15");
+    expect(mileLabel(26)).toBe("Finish");
+    expect(mileByN(0)?.title).toBe("Staten Island");
+    expect(mileByN(26)?.title).toBe("Tavern on the Green");
     expect(mileByN(15)?.title).toBe("Queensboro Bridge");
     expect(mileByN(27)).toBeUndefined();
   });

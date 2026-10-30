@@ -40,7 +40,7 @@ const at = (n: number) => Math.min(Math.round(n * METERS_PER_MILE), LAST);
 
 /** Positions checked against the real GPS track in tests/unit/courses.test.ts. */
 export const MILES: Mile[] = [
-  { n: 0, d: 0, title: "The start", note: "Staten Island. A howitzer instead of a starting gun, then Sinatra’s “New York, New York.”", landmark: true },
+  { n: 0, d: 0, title: "Staten Island", note: "Staten Island. A howitzer instead of a starting gun, then Sinatra’s “New York, New York.”", landmark: true },
   { n: 1, d: at(1), title: "Top of the Verrazzano", note: "The longest hill in the race and the highest point, with Lady Liberty off to the left.", landmark: true },
   { n: 2, d: at(2), title: "Into Brooklyn", note: "All downhill off the bridge, usually a minute faster than goal pace." },
   { n: 3, d: at(3), title: "Bay Ridge", note: "Fort Hamilton on the right, the first water stop, and the start of Fourth Avenue." },
@@ -66,12 +66,16 @@ export const MILES: Mile[] = [
   { n: 23, d: at(23), title: "Fifth Avenue hill", note: "Museum Mile: a mile-long climb in the worst possible place.", landmark: true },
   { n: 24, d: at(24), title: "Central Park", note: "Through Engineers’ Gate, down Cat Hill, past the Met." },
   { n: 25, d: at(25), title: "Central Park South", note: "Out of the park and along 59th Street, where Wrong-Way Silva took his detour." },
-  { n: 26, d: at(26), title: "The finish", note: "Columbus Circle, back into the park, two little hills, and Tavern on the Green.", landmark: true },
+  { n: 26, d: at(26), title: "Tavern on the Green", note: "Columbus Circle, back into the park, two little hills, and Tavern on the Green.", landmark: true },
 ];
 
 export const mileByN = (n: number) => MILES.find((m) => m.n === n);
 
-export const mileLabel = (n: number) => (n === 0 ? "Start" : `Mile ${n}`);
+/** Mile 26's marker carries the songs for the last stretch, so it's the finish. */
+export const FINISH_MILE = 26;
+export const mileLabel = (n: number) => (n === 0 ? "Start" : n === FINISH_MILE ? "Finish" : `Mile ${n}`);
+/** "the start", "mile 15", "the finish": for the middle of a sentence. */
+export const mileInSentence = (n: number) => (n === 0 ? "the start" : n === FINISH_MILE ? "the finish" : `mile ${n}`);
 
 let course: ReturnType<typeof loadPreset> | null = null;
 export function raceCourse() {
