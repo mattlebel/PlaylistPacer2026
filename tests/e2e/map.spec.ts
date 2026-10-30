@@ -18,7 +18,7 @@ test("a friend drags a song onto a mile", async ({ page, request }) => {
   await expect(page.getByRole("button", { name: "Drag Mr. Brightside onto a mile" })).toBeVisible();
   await dragSongTo(page, 15);
 
-  await expect(page.getByRole("status")).toHaveText("Added to Mile 15 · Queensboro Bridge");
+  await expect(page.getByRole("status")).toContainText("Added to Mile 15 · Queensboro Bridge");
   await expect(marker(page, 15)).toHaveAccessibleName("Mile 15, Queensboro Bridge: 1 of 3 songs");
   await expect(page.getByText("1 song on the course")).toBeVisible();
 
@@ -85,13 +85,13 @@ test("you can pick a mile without dragging", async ({ page, request }) => {
   await typeSong(page, "Juice", "Lizzo");
   await page.getByLabel("Or choose a mile").selectOption({ label: "Mile 8 · Barclays & the Bank Tower (3 left)" });
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Added to Mile 8 · Barclays & the Bank Tower");
+  await expect(page.getByRole("status")).toContainText("Added to Mile 8 · Barclays & the Bank Tower");
 
   // Or tap a mile and add straight from its popup.
   await page.getByRole("list", { name: "Miles along the course" }).getByRole("button", { name: /^Mile 20, The Bronx/ }).click();
   const sheet = page.getByRole("dialog", { name: "Mile 20 · The Bronx" });
   await typeSong(sheet, "Can't Hold Us", "Macklemore");
-  await expect(page.getByRole("status")).toHaveText("Added to Mile 20 · The Bronx");
+  await expect(page.getByRole("status")).toContainText("Added to Mile 20 · The Bronx");
   await expect(sheet).toHaveCount(0);
   await expect(page.getByText("2 songs on the course")).toBeVisible();
 });
@@ -109,11 +109,12 @@ test("full miles and repeat songs are refused", async ({ page, request }) => {
   await expect(page.getByRole("status")).toHaveText("Mile 20 is full. Try a mile nearby!");
   // Still holding it: drop it somewhere else.
   await dragSongTo(page, 21);
-  await expect(page.getByRole("status")).toHaveText("Added to Mile 21 · Madison Avenue Bridge");
+  await expect(page.getByRole("status")).toContainText("Added to Mile 21 · Madison Avenue Bridge");
 
-  await typeSong(page, "Mr. Brightside - Remastered", "The Killers");
-  await dragSongTo(page, 3);
-  await expect(page.getByRole("status")).toHaveText("That song is already on the course. Pick a different one!");
+  // Repeats are greyed out in search, and the server refuses them too (another version of the same song).
+  const res = await request.post(`/api/races/${race.id}/plants`, { data: { mile: 3, name: "Sam", song: song("Mr. Brightside - Remastered", "The Killers") } });
+  expect(res.status()).toBe(409);
+  expect((await res.json()).error).toBe("That song is already on the course. Pick a different one!");
 });
 
 test("the map updates live as other people add songs", async ({ page, request }) => {
@@ -137,7 +138,7 @@ test("skipping the name in the welcome popup brings it back when you add a song"
   await intro.getByLabel("First, what's your name?").fill("Jules");
   await intro.getByRole("button", { name: "Let's go" }).click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Added to Mile 9 · Bed-Stuy");
+  await expect(page.getByRole("status")).toContainText("Added to Mile 9 · Bed-Stuy");
   await expect(page.getByText("from Jules")).toBeVisible();
 });
 
@@ -171,8 +172,74 @@ test("pausing mid-drag zooms the map in, and it zooms back out after the drop", 
   const t = (await marker(page, 17).boundingBox())!;
   for (let i = 1; i <= 4; i++) await page.mouse.move(near.x + ((t.x + t.width / 2 - near.x) * i) / 4, near.y + ((t.y + t.height / 2 - near.y) * i) / 4);
   await page.mouse.up();
-  await expect(page.getByRole("status")).toHaveText("Added to Mile 17 · Upper East Side");
+  await expect(page.getByRole("status")).toContainText("Added to Mile 17 · Upper East Side");
   await expect.poll(gap, { timeout: 5000 }).toBeLessThan(before * 1.2);
+});
+
+test("friends see when Matt passes each mile, his bib, and when adding closes", async ({ page, request }) => {
+  const race = await createRace(request, "Matt Lebel", { bib: "13302" });
+  await openMap(page, race.id);
+  await expect(page.getByText("Matt starts at 9:10 AM (Wave 1), runs about 11:00 a mile, and should finish around 1:58 PM.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Track Matt live · bib 13302" })).toHaveAttribute("href", "https://results.nyrr.org");
+  // The fake server clock says Oct 20, noon (EDT): 11 days and 19 hours before 6am EST on race day.
+  await expect(page.getByText(/^Adding closes in 11 days, 1[89] hrs$/)).toBeVisible();
+  const row = page.getByRole("list", { name: "Miles along the course" }).getByRole("button", { name: /^Mile 15, Queensboro Bridge/ });
+  await expect(row).toContainText("~11:55 AM");
+  await row.click();
+  await expect(page.getByRole("dialog", { name: "Mile 15 · Queensboro Bridge" }).getByText("Matt passes here around 11:55 AM")).toBeVisible();
+});
+
+test("a live line shows the latest songs, and search greys out songs already on the course", async ({ page, request }) => {
+  const race = await createRace(request);
+  await addViaApi(request, race.id, { mile: 15, name: "Sarah Connor", song: song("Mr. Brightside", "The Killers") });
+  await openMap(page, race.id);
+  await expect(page.getByText(/Sarah added “Mr\. Brightside” to mile 15/)).toBeVisible();
+
+  // Both versions count as the same song, so both are greyed out.
+  await page.getByRole("combobox", { name: "Search for a song" }).fill("brightside");
+  const taken = page.getByRole("listbox", { name: "Search results" }).getByRole("option").filter({ hasText: "Already on mile 15" });
+  await expect(taken).toHaveCount(2);
+  await expect(taken.first()).toBeDisabled();
+});
+
+test("after adding, Share sends a ready-made message with the link", async ({ page, request }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "share", {
+      value: async (d?: ShareData) => {
+        (window as unknown as { shared?: ShareData }).shared = d;
+      },
+    });
+  });
+  const race = await createRace(request);
+  await openMap(page, race.id);
+  await typeSong(page, "Juice", "Lizzo");
+  await page.getByLabel("Or choose a mile").selectOption({ label: "Mile 15 · Queensboro Bridge (3 left)" });
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByRole("status").getByRole("button", { name: "Share" }).click();
+  const shared = (await page.evaluate(() => (window as unknown as { shared?: ShareData }).shared))!;
+  expect(shared.text).toBe("I put “Juice” on Matt's mile 15 (Queensboro Bridge) of the NYC Marathon 🎵 Add a song for them:");
+  expect(shared.url).toMatch(new RegExp(`/r/${race.id}$`));
+});
+
+test("a new song charges up the course line to its mile", async ({ page, request }) => {
+  const race = await createRace(request);
+  await openMap(page, race.id);
+  await expect(marker(page, 20)).not.toHaveAttribute("data-charged");
+  await addViaApi(request, race.id, { mile: 20, name: "Jules", song: song("Can't Hold Us", "Macklemore") });
+  // Someone else's song shows up on the next live refresh, and the pulse ends with the marker flashing.
+  await expect(marker(page, 20)).toHaveAttribute("data-charged", "", { timeout: 15_000 });
+});
+
+test("songs from Spotify can be previewed in the mile popup", async ({ page, request }) => {
+  const race = await createRace(request);
+  await addViaApi(request, race.id, { mile: 16, name: "Mom", song: song("Dog Days Are Over", "Florence + The Machine", "d") });
+  await openMap(page, race.id);
+  await marker(page, 16).click();
+  const sheet = page.getByRole("dialog", { name: "Mile 16 · First Avenue" });
+  await sheet.getByRole("button", { name: "Preview Dog Days Are Over" }).click();
+  await expect(sheet.locator("iframe")).toHaveAttribute("src", /open\.spotify\.com\/embed\/track\/d{22}/);
+  await sheet.getByRole("button", { name: "Hide preview of Dog Days Are Over" }).click();
+  await expect(sheet.locator("iframe")).toHaveCount(0);
 });
 
 test("link previews are personalized", async ({ request }) => {

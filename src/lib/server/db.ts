@@ -20,6 +20,9 @@ create table if not exists races (
   race text not null,
   goal_sec integer check (goal_sec between 7200 and 28800),
   start_time timestamptz,
+  pace_sec integer,
+  bib text,
+  spotify_playlist_id text,
   revealed_at timestamptz,
   created_at timestamptz not null default now()
 );
@@ -57,6 +60,9 @@ create index if not exists plants_race_idx on plants (race_id)
 const MIGRATIONS = [
   "alter table races alter column goal_sec drop not null",
   "alter table races alter column start_time drop not null",
+  "alter table races add column if not exists pace_sec integer",
+  "alter table races add column if not exists bib text",
+  "alter table races add column if not exists spotify_playlist_id text",
   "alter table plants add column if not exists mile integer",
   "alter table plants add column if not exists slot integer",
   "alter table plants alter column moment drop not null",

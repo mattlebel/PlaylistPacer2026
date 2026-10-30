@@ -4,24 +4,26 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api, ApiError } from "@/lib/client/api";
 import { rememberManageKey } from "@/lib/client/keys";
+import { RaceDetailsFields, useRaceDetails } from "./RaceDetails";
 import { RACE } from "@/lib/race";
 
 export function SetupForm() {
   const router = useRouter();
   const [runnerName, setName] = useState("");
   const [runnerEmail, setEmail] = useState("");
+  const details = useRaceDetails();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!runnerName.trim()) return;
+    if (!runnerName.trim() || !details.valid) return;
     setBusy(true);
     setErr(null);
     try {
       const res = await api<{ id: string; manageKey: string }>("/api/races", {
         method: "POST",
-        body: JSON.stringify({ runnerName, runnerEmail: runnerEmail.trim() || undefined }),
+        body: JSON.stringify({ runnerName, runnerEmail: runnerEmail.trim() || undefined, ...details.values }),
       });
       rememberManageKey(res.id, res.manageKey);
       router.push(`/r/${res.id}/manage?new=1#key=${res.manageKey}`);
@@ -58,12 +60,20 @@ export function SetupForm() {
         </div>
       </section>
 
+      <section className="panel space-y-5 p-6">
+        <div>
+          <h2 className="font-display text-xl font-bold">Your race</h2>
+          <p className="text-sm text-blush">Used to show friends roughly when you&apos;ll pass each mile. You can change it later.</p>
+        </div>
+        <RaceDetailsFields details={details} />
+      </section>
+
       {err && (
         <p role="alert" className="font-semibold text-coral">
           {err}
         </p>
       )}
-      <button type="submit" className="btn bg-pink px-8 py-4 text-base" disabled={!runnerName.trim() || busy}>
+      <button type="submit" className="btn bg-pink px-8 py-4 text-base" disabled={!runnerName.trim() || !details.valid || busy}>
         {busy ? "Generating…" : "Generate my link"}
       </button>
     </form>

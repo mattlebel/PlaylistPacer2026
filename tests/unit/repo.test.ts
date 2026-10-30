@@ -5,7 +5,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { MILES, SONGS_PER_MILE } from "@/lib/race";
 import { createDb, type Db } from "@/lib/server/db";
-import { addSong, AppError, createRace, deleteOwnSong, getManage, getOwnSong, getRegistry, removeSongAsRunner, songKey } from "@/lib/server/repo";
+import { addSong, AppError, createRace, deleteOwnSong, getManage, getOwnSong, getRegistry, removeSongAsRunner, songKey, updateRaceSettings } from "@/lib/server/repo";
 import { hashKey } from "@/lib/server/crypto";
 
 let db: Db;
@@ -59,6 +59,16 @@ describe("createRace", () => {
     await expect(createRace(db, { runnerName: "Dana" })).resolves.toBeTruthy();
   });
 
+  it("defaults to Wave 1 at 11:00 a mile, and takes a wave, pace and bib", async () => {
+    const plain = await newRace();
+    expect(await getRegistry(db, plain.id, BEFORE)).toMatchObject({ startTime: "2026-11-01T14:10:00.000Z", paceSec: 660, bib: undefined });
+    const r = await newRace({ startTime: "10:00", paceSec: 540, bib: "13302" });
+    expect(await getRegistry(db, r.id, BEFORE)).toMatchObject({ startTime: "2026-11-01T15:00:00.000Z", paceSec: 540, bib: "13302" });
+    await expectCode(newRace({ paceSec: 120 }), "invalid");
+    await expectCode(newRace({ bib: "13A02" }), "invalid");
+    await expectCode(newRace({ startTime: "15:00" }), "invalid");
+  });
+
   it("rejects a missing name or a bad email", async () => {
     await expectCode(newRace({ runnerName: "  " }), "invalid");
     await expectCode(newRace({ runnerEmail: "nope" }), "invalid");
@@ -87,6 +97,23 @@ describe("the live map", () => {
 
   it("404s for unknown links", async () => {
     await expectCode(getRegistry(db, "nope", BEFORE), "not_found");
+  });
+
+  it("lists the latest songs for the activity line, newest first, and the server's time", async () => {
+    const r = await newRace();
+    for (const [i, t] of ["One", "Two", "Three", "Four", "Five", "Six"].entries()) {
+      await add(r.id, i, t, `Friend${i} Lastname`);
+      await db.query("update plants set created_at = now() + ($1 || ' seconds')::interval where title = $2", [String(i), t]);
+    }
+    const reg = await getRegistry(db, r.id, BEFORE);
+    expect(reg.recent.map((x) => [x.title, x.from, x.mile])).toEqual([
+      ["Six", "Friend5", 5],
+      ["Five", "Friend4", 4],
+      ["Four", "Friend3", 3],
+      ["Three", "Friend2", 2],
+      ["Two", "Friend1", 1],
+    ]);
+    expect(reg.now).toBe(BEFORE.toISOString());
   });
 });
 
@@ -183,6 +210,21 @@ describe("runner view", () => {
     expect(m.total).toBe(3);
     expect(m.milesWithSongs).toBe(2);
     expect(m.miles.find((x) => x.n === 15)!.songs[0].from).toBe("Sarah Connor");
+  });
+
+  it("updates wave, pace and bib, and remembers the Spotify playlist, with the private key only", async () => {
+    const r = await newRace({ bib: "13302" });
+    await expectCode(updateRaceSettings(db, r.id, "wrong", { paceSec: 600 }), "forbidden");
+    await updateRaceSettings(db, r.id, r.manageKey, { startTime: "09:35", paceSec: 600, playlistId: "a".repeat(22) });
+    expect(await getManage(db, r.id, r.manageKey, BEFORE)).toMatchObject({
+      startTime: "2026-11-01T14:35:00.000Z",
+      paceSec: 600,
+      bib: "13302",
+      playlistId: "a".repeat(22),
+    });
+    await updateRaceSettings(db, r.id, r.manageKey, { bib: null });
+    expect((await getManage(db, r.id, r.manageKey, BEFORE)).bib).toBeUndefined();
+    await expectCode(updateRaceSettings(db, r.id, r.manageKey, { playlistId: "nope" }), "invalid");
   });
 
   it("can remove any song", async () => {

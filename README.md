@@ -25,7 +25,16 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
     change it, reopen "How it works".
   - You can remove your own song from the same device.
 - **Live:** the map refreshes every few seconds, so everyone sees what's been picked and which miles
-  still have room.
+  still have room. A line under the title shows the latest songs ("Sarah added “Juice” to mile 7 ·
+  2 min ago"), and each new song sends a glowing pulse along the course line to its mile, which
+  then flashes.
+- **Race details:** the runner's wave start, pace per mile (default 11:00) and bib. Friends see when
+  the runner passes each mile ("around 11:55 AM"), the expected finish, a "Track live" button
+  (results.nyrr.org, searched by bib), and a countdown to when adding closes.
+- **In each mile's popup:** songs already there (with a Spotify preview player), when the runner
+  passes, the coach's notes, and a search box to add one. Search results grey out songs that are
+  already on the course.
+- **After adding:** a Share button sends a ready-made message with the link.
 - **Rules, enforced in the database:**
   - Up to 3 songs per mile (about a mile of music at a typical pace). Each song takes a numbered spot, so two people dropping at once can't
     overfill a mile.
@@ -33,7 +42,10 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
   - Adding closes at 6am on race morning.
 - **Runner's private page:**
   - See every song with full names, and remove any of them.
-  - Save all the songs to Spotify as one playlist, in course order. Songs picked from the built-in
+  - Edit wave, pace and bib; see the estimated time at every mile.
+  - Download every song as a spreadsheet (CSV), as a backup.
+  - Save all the songs to Spotify as one playlist, in course order. Saving again updates the same
+    playlist, so the copy downloaded on your phone just refreshes. Songs picked from the built-in
     list are matched on Spotify by title and artist; any it can't find are listed.
 
 Songs from the first version of the app (one song per named "moment") are moved onto the matching

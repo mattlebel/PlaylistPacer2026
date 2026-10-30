@@ -26,7 +26,7 @@ describe("savePlaylist", () => {
       }),
     );
     const songs = Array.from({ length: 150 }, (_, i) => ({ title: `Song ${i}`, artist: "X", uri: `spotify:track:${i}` }));
-    expect(await savePlaylist("Don't peek", "desc", songs)).toEqual({ url: "https://open.spotify.com/playlist/NEW", missing: [] });
+    expect(await savePlaylist("Don't peek", "desc", songs)).toEqual({ url: "https://open.spotify.com/playlist/NEW", id: "NEW", missing: [], updated: false });
     expect(JSON.parse(String(calls[0].init.body))).toEqual({ name: "Don't peek", description: "desc", public: false });
     expect((calls[0].init.headers as Record<string, string>).Authorization).toBe("Bearer tok");
     const batches = calls.slice(1).map((c) => JSON.parse(String(c.init.body)).uris as string[]);
@@ -63,6 +63,31 @@ describe("savePlaylist", () => {
     expect(searches[0]).toBe("track:Juice artist:Lizzo");
     expect(added).toEqual(["spotify:track:A", "spotify:track:FOUND"]);
     expect(res.missing).toEqual([{ title: "Nope", artist: "Nobody" }]);
+  });
+
+  it("updates the same playlist on a re-save, or makes a new one if it's gone", async () => {
+    const calls: { url: string; method?: string }[] = [];
+    let existing = true;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        calls.push({ url, method: init.method });
+        if (url.includes("/playlists/OLD/items")) return existing ? json({ snapshot_id: "s" }) : json({}, 404);
+        if (url.endsWith("/me/playlists")) return json({ id: "NEW", external_urls: { spotify: "https://open.spotify.com/playlist/NEW" } });
+        return json({ snapshot_id: "s" });
+      }),
+    );
+    const songs = Array.from({ length: 120 }, (_, i) => ({ title: `S${i}`, artist: "X", uri: `spotify:track:${i}` }));
+    expect(await savePlaylist("x", "y", songs, "OLD")).toEqual({ url: "https://open.spotify.com/playlist/OLD", id: "OLD", missing: [], updated: true });
+    expect(calls.map((c) => `${c.method} ${c.url.split("/v1")[1]}`)).toEqual(["PUT /playlists/OLD/items", "POST /playlists/OLD/items"]);
+    expect(calls.some((c) => c.url.endsWith("/me/playlists"))).toBe(false);
+
+    calls.length = 0;
+    existing = false;
+    const res = await savePlaylist("x", "y", songs, "OLD");
+    expect(res).toMatchObject({ id: "NEW", updated: false });
+    expect(calls[0].method).toBe("PUT");
+    expect(calls[1].url).toMatch(/\/me\/playlists$/);
   });
 
   it("refreshes an expired token first", async () => {

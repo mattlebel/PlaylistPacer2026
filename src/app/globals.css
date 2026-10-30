@@ -161,6 +161,21 @@ body::before {
   color: var(--color-mute) !important;
 }
 
+/* A mile marker flashes when the charge-up reaches it. */
+@keyframes charge {
+  0% {
+    box-shadow: 0 0 0 0 rgb(255 224 138 / 0.95);
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.5);
+  }
+  100% {
+    box-shadow: 0 0 0 16px rgb(255 224 138 / 0);
+    transform: scale(1);
+  }
+}
+
 /* The song you're holding gives a little nudge: "drag me". */
 @keyframes nudge {
   0%,

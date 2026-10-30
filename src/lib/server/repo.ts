@@ -1,7 +1,8 @@
 import "server-only";
 import { z } from "zod";
-import { ADDING_CLOSES_AT, MILES, RACE, SONGS_PER_MILE, mileLabel } from "../race";
+import { ADDING_CLOSES_AT, DEFAULT_PACE_SEC, DEFAULT_START, MILES, RACE, SONGS_PER_MILE, mileLabel, startInstant } from "../race";
 import type { Song } from "../types";
+import { songKey } from "../songKey";
 import { hashKey, keyMatches, newId, newKey } from "./crypto";
 import { uniqueViolation, type Db } from "./db";
 
@@ -28,9 +29,28 @@ const songSchema = z.object({
 
 const email = z.email("That email doesn't look right").max(200).transform((s) => s.trim().toLowerCase());
 
+const startTime = z.string().regex(/^(0[7-9]|1[0-2]):[0-5]\d$/, "Pick a start time between 7:00 and 12:59");
+const paceSec = z.number().int().min(300, "That pace is faster than 5:00 a mile").max(1200, "That pace is slower than 20:00 a mile");
+const bib = z
+  .string()
+  .trim()
+  .regex(/^\d{1,6}$/, "Bib numbers are just digits")
+  .optional()
+  .or(z.literal("").transform(() => undefined));
+
 export const createRaceSchema = z.object({
   runnerName: z.string().trim().min(1, "Add your name").max(40),
   runnerEmail: email.optional(),
+  startTime: startTime.default(DEFAULT_START),
+  paceSec: paceSec.default(DEFAULT_PACE_SEC),
+  bib,
+});
+
+export const raceSettingsSchema = z.object({
+  startTime: startTime.optional(),
+  paceSec: paceSec.optional(),
+  bib: bib.nullable(),
+  playlistId: z.string().regex(/^[A-Za-z0-9]{22}$/).optional(),
 });
 
 export const addSongSchema = z.object({
@@ -48,20 +68,7 @@ function parse<T>(schema: z.ZodType<T>, input: unknown): T {
 
 /* ---------- songs ---------- */
 
-/**
- * Duplicate detection key. Based on title + lead artist so different releases of the same
- * song ("Mr. Brightside", "Mr. Brightside - Remastered") still count as a duplicate.
- */
-export function songKey(s: Pick<Song, "title" | "artist">) {
-  const title = s.title
-    .toLowerCase()
-    .replace(/\s+-\s+.*$/, "")
-    .replace(/[([].*?[)\]]/g, "")
-    .replace(/\b(feat|ft)\.?\s.*$/, "");
-  const artist = s.artist.toLowerCase().split(/,|&| and | feat\.? | x /)[0];
-  const clean = (x: string) => x.normalize("NFKD").replace(/[^a-z0-9]/g, "");
-  return `${clean(title)}|${clean(artist)}`;
-}
+export { songKey } from "../songKey";
 
 /* ---------- rows ---------- */
 
@@ -70,8 +77,19 @@ interface RaceRow {
   manage_key_hash: string;
   runner_name: string;
   runner_email: string | null;
+  start_time: Date | string | null;
+  pace_sec: number | null;
+  bib: string | null;
+  spotify_playlist_id: string | null;
   created_at: Date | string;
 }
+
+/** Wave start, pace and bib, for estimated times along the course. Races from before this existed get the defaults. */
+const raceInfo = (r: RaceRow) => ({
+  startTime: (r.start_time ? new Date(r.start_time) : startInstant(DEFAULT_START)).toISOString(),
+  paceSec: r.pace_sec ?? DEFAULT_PACE_SEC,
+  bib: r.bib ?? undefined,
+});
 
 interface PlantRow {
   id: string;
@@ -129,13 +147,10 @@ export async function createRace(db: Db, input: unknown) {
   const data = parse(createRaceSchema, input);
   const id = newId(10);
   const manageKey = newKey();
-  await db.query(`insert into races (id, manage_key_hash, runner_name, runner_email, race) values ($1,$2,$3,$4,$5)`, [
-    id,
-    hashKey(manageKey),
-    data.runnerName,
-    data.runnerEmail ?? null,
-    RACE.id,
-  ]);
+  await db.query(
+    `insert into races (id, manage_key_hash, runner_name, runner_email, race, start_time, pace_sec, bib) values ($1,$2,$3,$4,$5,$6,$7,$8)`,
+    [id, hashKey(manageKey), data.runnerName, data.runnerEmail ?? null, RACE.id, startInstant(data.startTime).toISOString(), data.paceSec, data.bib ?? null],
+  );
   return { id, manageKey, runnerName: data.runnerName, runnerEmail: data.runnerEmail };
 }
 
@@ -143,13 +158,27 @@ export async function createRace(db: Db, input: unknown) {
 export async function getRegistry(db: Db, raceId: string, now = new Date()) {
   const race = await loadRace(db, raceId);
   const plants = await loadPlants(db, raceId);
+  const recent = [...plants]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 5)
+    .map((p) => ({
+      id: p.id,
+      mile: p.mile,
+      title: p.title,
+      from: p.is_runner ? undefined : firstName(p.name),
+      isRunner: p.is_runner,
+      at: new Date(p.created_at).toISOString(),
+    }));
   return {
     id: race.id,
     runnerName: race.runner_name,
+    ...raceInfo(race),
+    now: now.toISOString(),
     open: isOpen(now),
     closesAt: ADDING_CLOSES_AT.toISOString(),
     perMile: SONGS_PER_MILE,
     total: plants.length,
+    recent,
     miles: byMile(plants, (p) => ({ id: p.id, song: songOf(p), from: p.is_runner ? undefined : firstName(p.name), isRunner: p.is_runner })),
   };
 }
@@ -162,6 +191,8 @@ export async function getManage(db: Db, raceId: string, key: string | null, now 
   return {
     id: race.id,
     runnerName: race.runner_name,
+    ...raceInfo(race),
+    playlistId: race.spotify_playlist_id ?? undefined,
     open: isOpen(now),
     closesAt: ADDING_CLOSES_AT.toISOString(),
     perMile: SONGS_PER_MILE,
@@ -175,6 +206,23 @@ export async function getManage(db: Db, raceId: string, key: string | null, now 
       message: p.message ?? undefined,
     })),
   };
+}
+
+/** The runner updates their wave start, pace or bib, or remembers the Spotify playlist to update next time. */
+export async function updateRaceSettings(db: Db, raceId: string, key: string | null, input: unknown) {
+  const data = parse(raceSettingsSchema, input);
+  checkManageKey(await loadRace(db, raceId), key);
+  const sets: string[] = [];
+  const vals: unknown[] = [raceId];
+  const put = (col: string, v: unknown) => {
+    vals.push(v);
+    sets.push(`${col} = $${vals.length}`);
+  };
+  if (data.startTime) put("start_time", startInstant(data.startTime).toISOString());
+  if (data.paceSec) put("pace_sec", data.paceSec);
+  if (data.bib !== undefined) put("bib", data.bib);
+  if (data.playlistId) put("spotify_playlist_id", data.playlistId);
+  if (sets.length) await db.query(`update races set ${sets.join(", ")} where id = $1`, vals);
 }
 
 /** The runner can remove any song (frees its spot on the mile). */

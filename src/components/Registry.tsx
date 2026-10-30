@@ -8,7 +8,8 @@ import { api, ApiError, type Registry as RegistryData } from "@/lib/client/api";
 import { editKeys, rememberEditKey } from "@/lib/client/keys";
 import { confetti } from "@/lib/confetti";
 import { COURSE_NOTES, COURSE_NOTES_CREDIT } from "@/lib/courseNotes";
-import { MILES, mileByN, mileLabel, RACE } from "@/lib/race";
+import { etaAtMile, finishEta, fmtPace, fmtTimeOfDay, MILES, mileByN, mileLabel, RACE, startHhmm, waveLabel } from "@/lib/race";
+import { songKey } from "@/lib/songKey";
 import { spotifyTrackUrl } from "@/lib/spotify";
 import type { Song } from "@/lib/types";
 import { SpotifyIcon } from "./brand";
@@ -51,6 +52,12 @@ export function Registry() {
   const [open, setOpen] = useState<number | null>(null);
   const [howto, setHowto] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [toastAction, setToastAction] = useState<{ label: string; onClick(): void } | null>(null);
+  // Server time minus this device's time, so countdowns and "2 min ago" match the server.
+  const [offset, setOffset] = useState(0);
+  // A new song somewhere on the course: the line charges up to that mile.
+  const [charge, setCharge] = useState<{ n: number; key: number } | null>(null);
+  const prevCounts = useRef<Map<number, number> | null>(null);
   const [name, setName] = useState("");
   const [mine, setMine] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -59,7 +66,13 @@ export function Registry() {
 
   const load = useCallback(async () => {
     try {
-      setData(await api<RegistryData>(`/api/races/${id}`));
+      const r = await api<RegistryData>(`/api/races/${id}`);
+      const prev = prevCounts.current;
+      const grown = prev && r.miles.find((m) => m.songs.length > (prev.get(m.n) ?? 0));
+      if (grown) setCharge({ n: grown.n, key: Date.now() });
+      prevCounts.current = new Map(r.miles.map((m) => [m.n, m.songs.length]));
+      setOffset(new Date(r.now).getTime() - Date.now());
+      setData(r);
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : "Couldn't load this race.");
     }
@@ -84,6 +97,13 @@ export function Registry() {
     }, POLL_MS);
     return () => clearInterval(t);
   }, [load, dragging]);
+
+  const taken = useMemo(() => new Map((data?.miles ?? []).flatMap((m) => m.songs.map((e) => [songKey(e.song), m.n] as const))), [data]);
+
+  const say = (message: string | null, action: { label: string; onClick(): void } | null = null) => {
+    setToast(message);
+    setToastAction(action);
+  };
 
   const markers = useMemo<MarkerState[]>(
     () => (data?.miles ?? []).map((m) => ({ count: m.songs.length, hot: hot === m.n, selected: open === m.n })),
@@ -116,13 +136,13 @@ export function Registry() {
   const add = async (mile: number, song: Song) => {
     if (!data || busy) return false;
     if (!name.trim()) {
-      setToast(`Add your name first, so ${first(data.runnerName)} knows who picked it.`);
+      say(`Add your name first, so ${first(data.runnerName)} knows who picked it.`);
       setHowto(true);
       return false;
     }
     const target = data.miles.find((m) => m.n === mile);
     if (target && target.songs.length >= data.perMile) {
-      setToast(`${mileLabel(mile)} is full. Try a mile nearby!`);
+      say(`${mileLabel(mile)} is full. Try a mile nearby!`);
       return false;
     }
     setBusy(true);
@@ -134,13 +154,13 @@ export function Registry() {
       rememberEditKey(res.id, res.editKey);
       setMine(editKeys());
       setHeld(null);
-      setToast(`Added to ${mileLabel(mile)} · ${mileByN(mile)?.title}`);
+      say(`Added to ${mileLabel(mile)} · ${mileByN(mile)?.title}`, { label: "Share", onClick: () => share(song, mile) });
       confetti();
       await load();
       return true;
     } catch (e) {
       const ae = e instanceof ApiError ? e : null;
-      setToast(ae?.message ?? "Couldn't add your song. Try again.");
+      say(ae?.message ?? "Couldn't add your song. Try again.");
       if (ae?.code === "song_taken") setHeld(null);
       if (ae?.code === "mile_full") load();
       return false;
@@ -154,15 +174,34 @@ export function Registry() {
     if (!key) return;
     try {
       await api(`/api/plants/${entry.id}`, { method: "DELETE", key: { header: "x-edit-key", value: key } });
-      setToast("Removed your song.");
+      say("Removed your song.");
       await load();
     } catch (e) {
-      setToast(e instanceof ApiError ? e.message : "Couldn't remove it. Try again.");
+      say(e instanceof ApiError ? e.message : "Couldn't remove it. Try again.");
+    }
+  };
+
+  /** "I put Mr. Brightside on Matt's Queensboro Bridge…" with the link, through the phone's share sheet or the clipboard. */
+  const share = async (song: Song, mile: number) => {
+    if (!data) return;
+    const runnerFirst = first(data.runnerName);
+    const url = `${window.location.origin}/r/${data.id}`;
+    const text = `I put “${song.title}” on ${runnerFirst}'s ${mileLabel(mile).toLowerCase()} (${mileByN(mile)?.title}) of the NYC Marathon 🎵 Add a song for them:`;
+    try {
+      if (navigator.share) await navigator.share({ title: `Help ${runnerFirst} soundtrack 26.2`, text, url });
+      else {
+        await navigator.clipboard.writeText(`${text} ${url}`);
+        say("Copied. Paste it into a text or group chat.");
+      }
+    } catch {
+      /* closed the share sheet */
     }
   };
 
   if (err) return <p className="pt-10 text-lg">{err}</p>;
   if (!data) return <p className="pt-10 text-pink/60">Loading…</p>;
+  const start = new Date(data.startTime);
+  const eta = (n: number) => fmtTimeOfDay(etaAtMile(start, data.paceSec, n));
 
   const runner = first(data.runnerName);
   const withRoom = data.miles.filter((m) => m.songs.length < data.perMile).length;
@@ -187,6 +226,7 @@ export function Registry() {
             <>Adding songs is closed. {runner} is heading to the start! Here&apos;s the soundtrack everyone built.</>
           )}
         </p>
+        <RaceLine runner={runner} start={start} paceSec={data.paceSec} bib={data.bib} />
         <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[11px]">
           <span className="flex items-center gap-2" title="This map updates on its own">
             <span className="relative flex h-2 w-2">
@@ -201,15 +241,17 @@ export function Registry() {
           <span>
             {withRoom} of {MILES.length} miles with room
           </span>
+          {data.open && <Countdown closesAt={data.closesAt} offset={offset} />}
           <button className="underline underline-offset-4 hover:text-chalk" onClick={() => setHowto(true)}>
             How it works
           </button>
         </div>
+        <Activity recent={data.recent} runner={runner} offset={offset} />
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
         <div ref={mapRef} className="panel scroll-mt-2 overflow-hidden lg:order-2">
-          <CourseMap ref={courseMap} markers={markers} perMile={data.perMile} dragging={dragging} onSelect={setOpen} className="h-[60dvh] min-h-[380px] lg:h-[700px]" />
+          <CourseMap ref={courseMap} charge={charge} markers={markers} perMile={data.perMile} dragging={dragging} onSelect={setOpen} className="h-[60dvh] min-h-[380px] lg:h-[700px]" />
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 font-mono text-[10px] uppercase text-pink/80">
             <span className="flex items-center gap-2">
               <ChipStack count={2} max={data.perMile} size="sm" /> songs on a mile
@@ -228,7 +270,7 @@ export function Registry() {
                 <h2 className="font-display text-2xl font-bold">Add a song</h2>
                 <p className="mt-1 text-sm text-blush">Pick one, then drag it onto the map.</p>
               </div>
-              <SongSearch onPick={pickSong} inputId={SEARCH_ID} />
+              <SongSearch onPick={pickSong} inputId={SEARCH_ID} taken={taken} />
               {held && (
                 <HeldSong
                   key={held.spotifyId ?? held.title}
@@ -264,7 +306,7 @@ export function Registry() {
         <p className="mb-5 text-blush">You can drop songs here too.</p>
         <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="Miles along the course">
           {data.miles.map((m) => (
-            <MileRow key={m.n} mile={m} perMile={data.perMile} runner={runner} hot={hot === m.n} dragging={dragging} onOpen={() => setOpen(m.n)} />
+            <MileRow key={m.n} mile={m} eta={eta(m.n)} perMile={data.perMile} runner={runner} hot={hot === m.n} dragging={dragging} onOpen={() => setOpen(m.n)} />
           ))}
         </ol>
       </section>
@@ -272,6 +314,8 @@ export function Registry() {
       {openMile && (
         <MileSheet
           mile={openMile}
+          eta={eta(openMile.n)}
+          taken={taken}
           perMile={data.perMile}
           runner={runner}
           isOpen={data.open}
@@ -330,7 +374,7 @@ export function Registry() {
         </form>
       </Modal>
 
-      <Toast message={toast} onDone={() => setToast(null)} />
+      <Toast message={toast} action={toastAction} onDone={() => say(null)} />
     </div>
   );
 }
@@ -503,6 +547,7 @@ const fromLine = (songs: Entry[], runner: string) => {
 
 function MileRow({
   mile,
+  eta,
   perMile,
   runner,
   hot,
@@ -510,6 +555,7 @@ function MileRow({
   onOpen,
 }: {
   mile: MileData;
+  eta: string;
   perMile: number;
   runner: string;
   hot: boolean;
@@ -535,6 +581,7 @@ function MileRow({
             <span className="font-mono text-[10px] uppercase text-pink/70">{mileLabel(mile.n)}</span>
             {info.landmark && <span className="text-[10px] text-butter">★</span>}
             {full && <span className="font-mono text-[10px] uppercase text-chalk">full</span>}
+            <span className="ml-auto font-mono text-[10px] text-pink/60">~{eta}</span>
           </span>
           <span className="block truncate font-display text-lg font-bold">{info.title}</span>
           <span className="block truncate text-sm text-pink/70">{fromLine(mile.songs, runner) || info.note}</span>
@@ -546,6 +593,8 @@ function MileRow({
 
 function MileSheet({
   mile,
+  eta,
+  taken,
   perMile,
   runner,
   isOpen,
@@ -557,6 +606,8 @@ function MileSheet({
   onClose,
 }: {
   mile: MileData;
+  eta: string;
+  taken: Map<string, number>;
   perMile: number;
   runner: string;
   isOpen: boolean;
@@ -569,12 +620,16 @@ function MileSheet({
 }) {
   const info = mileByN(mile.n)!;
   const room = perMile - mile.songs.length;
+  const [preview, setPreview] = useState<string | null>(null);
   return (
     <Modal open onClose={onClose} title={`${mileLabel(mile.n)} · ${info.title}`}>
       <div className="flex items-start gap-5">
         <ChipStack count={mile.songs.length} max={perMile} size="lg" className="pt-1" />
         <div className="min-w-0">
           <p className="text-blush">{info.note}</p>
+          <p className="mt-1 text-sm text-chalk">
+            {runner} {mile.n === 0 ? "starts" : "passes here"} around {eta}
+          </p>
           <p className="mt-2 font-mono text-[11px] uppercase">
             {mile.songs.length} of {perMile} songs · {room > 0 ? `${room} ${room === 1 ? "spot" : "spots"} open` : "full"}
           </p>
@@ -583,7 +638,7 @@ function MileSheet({
 
       <ol className="mt-5 space-y-2">
         {mile.songs.map((e) => (
-          <li key={e.id} className="flex items-center gap-3 rounded-xl bg-ink/25 p-2 pr-3">
+          <li key={e.id} className="flex flex-wrap items-center gap-3 rounded-xl bg-ink/25 p-2 pr-3">
             {e.song.art && e.song.spotifyId ? (
               <a href={spotifyTrackUrl(e.song.spotifyId)} target="_blank" rel="noreferrer" aria-label={`Play ${e.song.title} on Spotify`} className="h-12 w-12 shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -605,10 +660,28 @@ function MileSheet({
                 <SpotifyIcon size={18} />
               </a>
             )}
+            {e.song.spotifyId && (
+              <button
+                className="shrink-0 rounded-full border border-pink/30 px-2.5 py-1 text-xs font-semibold hover:border-pink"
+                aria-label={`${preview === e.id ? "Hide preview of" : "Preview"} ${e.song.title}`}
+                onClick={() => setPreview(preview === e.id ? null : e.id)}
+              >
+                {preview === e.id ? "Hide" : "▶ Preview"}
+              </button>
+            )}
             {mine[e.id] && isOpen && (
               <button className="shrink-0 text-xs text-pink/60 underline hover:text-pink" onClick={() => onRemove(e)}>
                 Remove mine
               </button>
+            )}
+            {preview === e.id && e.song.spotifyId && (
+              <iframe
+                title={`Preview ${e.song.title} on Spotify`}
+                src={`https://open.spotify.com/embed/track/${e.song.spotifyId}?utm_source=generator&theme=0`}
+                className="mt-1 h-20 w-full basis-full rounded-xl border-0"
+                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                loading="lazy"
+              />
             )}
           </li>
         ))}
@@ -628,7 +701,7 @@ function MileSheet({
           ) : (
             <>
               <div className="label mb-2">Add a song to {mile.n === 0 ? "the start" : `mile ${mile.n}`}</div>
-              <SongSearch onPick={onAdd} />
+              <SongSearch onPick={onAdd} taken={taken} />
             </>
           )}
         </div>
@@ -660,5 +733,81 @@ function CoachNotes({ mile }: { mile: number }) {
       )}
       <p className="mt-3 font-mono text-[10px] text-pink/50">{COURSE_NOTES_CREDIT}</p>
     </section>
+  );
+}
+
+/** "Matt starts at 9:10 AM (Wave 1), runs about 11:00 a mile and should finish around 1:58 PM", plus live tracking. */
+function RaceLine({ runner, start, paceSec, bib }: { runner: string; start: Date; paceSec: number; bib?: string }) {
+  const wave = waveLabel(startHhmm(start));
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3">
+      <p className="text-blush">
+        {runner} starts at {fmtTimeOfDay(start)}
+        {wave ? ` (${wave})` : ""}, runs about {fmtPace(paceSec)} a mile, and should finish around {fmtTimeOfDay(finishEta(start, paceSec))}.
+      </p>
+      {bib && (
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <a href="https://results.nyrr.org" target="_blank" rel="noreferrer" className="btn btn-ghost px-4 py-2 text-sm">
+            Track {runner} live · bib {bib}
+          </a>
+          <span className="text-xs text-pink/60">Search bib {bib} at results.nyrr.org or in the TCS NYC Marathon app.</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Ticks every 30 seconds, on the server's clock. */
+function useServerNow(offset: number) {
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    const tick = () => setNow(Date.now() + offset);
+    tick();
+    const t = setInterval(tick, 30_000);
+    return () => clearInterval(t);
+  }, [offset]);
+  return now;
+}
+
+/** "Adding closes in 1 day, 4 hrs". */
+function Countdown({ closesAt, offset }: { closesAt: string; offset: number }) {
+  const now = useServerNow(offset);
+  if (now === null) return null;
+  const mins = Math.max(0, Math.floor((new Date(closesAt).getTime() - now) / 60_000));
+  const d = Math.floor(mins / 1440);
+  const h = Math.floor((mins % 1440) / 60);
+  const m = mins % 60;
+  const left = d ? `${d} ${d === 1 ? "day" : "days"}, ${h} ${h === 1 ? "hr" : "hrs"}` : h ? `${h} ${h === 1 ? "hr" : "hrs"}, ${m} min` : `${m} min`;
+  return <span className={mins < 180 ? "text-butter" : ""}>Adding closes in {left}</span>;
+}
+
+const ago = (ms: number) => {
+  const m = Math.floor(ms / 60_000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} hr ago`;
+  const d = Math.floor(h / 24);
+  return d === 1 ? "yesterday" : `${d} days ago`;
+};
+
+/** "Sarah added “Juice” to mile 7 · 5 min ago", cycling through the latest few. */
+function Activity({ recent, runner, offset }: { recent: RegistryData["recent"]; runner: string; offset: number }) {
+  const now = useServerNow(offset);
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    if (recent.length < 2) return;
+    const t = setInterval(() => setI((x) => x + 1), 4500);
+    return () => clearInterval(t);
+  }, [recent.length]);
+  if (!recent.length || now === null) return null;
+  const r = recent[i % recent.length];
+  const who = r.from ?? (r.isRunner ? runner : "Someone");
+  return (
+    <p className="mt-3 truncate text-sm text-blush" aria-live="polite">
+      <span aria-hidden>🎵 </span>
+      <strong className="font-semibold text-chalk">{who}</strong> added “{r.title}” to {r.mile === 0 ? "the start" : `mile ${r.mile}`}
+      <span className="text-pink/60"> · {ago(now - new Date(r.at).getTime())}</span>
+    </p>
   );
 }

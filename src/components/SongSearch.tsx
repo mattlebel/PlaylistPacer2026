@@ -3,6 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { searchSongs } from "@/lib/client/api";
 import { suggestSongs } from "@/lib/popularSongs";
+import { songKey } from "@/lib/songKey";
 import { spotifyTrackUrl } from "@/lib/spotify";
 import type { Song } from "@/lib/types";
 import { SpotifyIcon } from "./brand";
@@ -18,7 +19,16 @@ const searchAvailable = () =>
  * One box for finding a song. Results come from Spotify when it's set up, or from a built-in list
  * of popular running songs when it isn't. Picking hands the song back and clears the box.
  */
-export function SongSearch({ onPick, inputId }: { onPick(song: Song): void; inputId?: string }) {
+export function SongSearch({
+  onPick,
+  inputId,
+  taken,
+}: {
+  onPick(song: Song): void;
+  inputId?: string;
+  /** Songs already on the course (by songKey) and their mile: shown greyed out, can't be picked. */
+  taken?: Map<string, number>;
+}) {
   const autoId = useId();
   const id = inputId ?? autoId;
   const listId = `${id}-list`;
@@ -63,6 +73,7 @@ export function SongSearch({ onPick, inputId }: { onPick(song: Song): void; inpu
   const typing = q.trim().length >= 2;
   const options = useMemo(() => (!typing ? [] : configured ? remote : configured === false ? suggestSongs(q) : []), [typing, configured, remote, q]);
   const current = Math.min(active, Math.max(0, options.length - 1));
+  const takenAt = (s: Song) => taken?.get(songKey(s));
 
   const pick = (s: Song) => {
     seq.current++;
@@ -103,7 +114,7 @@ export function SongSearch({ onPick, inputId }: { onPick(song: Song): void; inpu
             setActive((current - 1 + options.length) % options.length);
           } else if (e.key === "Enter") {
             e.preventDefault();
-            pick(options[current]);
+            if (takenAt(options[current]) === undefined) pick(options[current]);
           }
         }}
       />
@@ -117,39 +128,44 @@ export function SongSearch({ onPick, inputId }: { onPick(song: Song): void; inpu
       </div>
       {options.length > 0 && (
         <ul id={listId} className="mt-2 max-h-72 space-y-1 overflow-y-auto pr-1" role="listbox" aria-label="Search results">
-          {options.map((s, i) => (
-            <li key={`${s.spotifyId ?? s.title}-${s.artist}`} className={`flex items-center gap-3 rounded-xl px-2 py-1.5 ${i === current ? "bg-ink/35" : "hover:bg-ink/25"}`}>
-              <button
-                type="button"
-                id={`${listId}-${i}`}
-                role="option"
-                aria-selected={i === current}
-                className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                onMouseEnter={() => setActive(i)}
-                onClick={() => pick(s)}
-              >
-                {s.art ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={s.art} alt="" className="h-10 w-10 shrink-0 rounded-[4px] object-cover" />
-                ) : (
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[4px] bg-ink-3">♪</span>
+          {options.map((s, i) => {
+            const on = takenAt(s);
+            return (
+              <li key={`${s.spotifyId ?? s.title}-${s.artist}`} className={`flex items-center gap-3 rounded-xl px-2 py-1.5 ${on !== undefined ? "opacity-50" : i === current ? "bg-ink/35" : "hover:bg-ink/25"}`}>
+                <button
+                  type="button"
+                  id={`${listId}-${i}`}
+                  role="option"
+                  aria-selected={i === current}
+                  aria-disabled={on !== undefined}
+                  disabled={on !== undefined}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-not-allowed"
+                  onMouseEnter={() => setActive(i)}
+                  onClick={() => pick(s)}
+                >
+                  {s.art ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={s.art} alt="" className="h-10 w-10 shrink-0 rounded-[4px] object-cover" />
+                  ) : (
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[4px] bg-ink-3">♪</span>
+                  )}
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold" title={s.title}>
+                      {s.title}
+                    </span>
+                    <span className="block truncate text-sm text-pink/70" title={s.artist}>
+                      {on !== undefined ? `Already on ${on === 0 ? "the start" : `mile ${on}`}` : s.artist}
+                    </span>
+                  </span>
+                </button>
+                {s.spotifyId && (
+                  <a href={spotifyTrackUrl(s.spotifyId)} target="_blank" rel="noreferrer" className="shrink-0 p-1 text-pink/70 hover:text-chalk" aria-label={`Play ${s.title} on Spotify`}>
+                    <SpotifyIcon size={18} />
+                  </a>
                 )}
-                <span className="min-w-0">
-                  <span className="block truncate font-semibold" title={s.title}>
-                    {s.title}
-                  </span>
-                  <span className="block truncate text-sm text-pink/70" title={s.artist}>
-                    {s.artist}
-                  </span>
-                </span>
-              </button>
-              {s.spotifyId && (
-                <a href={spotifyTrackUrl(s.spotifyId)} target="_blank" rel="noreferrer" className="shrink-0 p-1 text-pink/70 hover:text-chalk" aria-label={`Play ${s.title} on Spotify`}>
-                  <SpotifyIcon size={18} />
-                </a>
-              )}
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

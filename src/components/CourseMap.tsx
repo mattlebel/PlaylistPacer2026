@@ -1,10 +1,10 @@
 "use client";
 
-import { Map as MLMap, Marker, NavigationControl, setWorkerUrl, type StyleSpecification } from "maplibre-gl";
+import { Map as MLMap, Marker, NavigationControl, setWorkerUrl, type ExpressionSpecification, type StyleSpecification } from "maplibre-gl";
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { createPortal } from "react-dom";
 import { bounds, makePointLookup } from "@/lib/geo";
-import { MILES, mileLabel, raceCourse } from "@/lib/race";
+import { MILES, mileLabel, RACE, raceCourse } from "@/lib/race";
 import { ChipStack } from "./ChipStack";
 
 const STYLE_URL = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
@@ -119,6 +119,34 @@ export interface CourseMapHandle {
   dragEnd(): void;
 }
 
+/* ---------- charge-up: a pulse runs along the course to a mile that just got a song ---------- */
+
+type Stop = [number, string];
+const CLEAR = "rgba(0,0,0,0)";
+const SNAKE = 0.09; // length of the bright head and tail, as a share of the course
+
+/** A line-gradient over the course: filled from the start to `head`, with a bright snake head at `head`. */
+function chargeGradient(head: number, fill: number, glow: number) {
+  const tail = Math.max(0, head - SNAKE);
+  const raw: Stop[] = [
+    [0, `rgba(255,224,138,${fill})`],
+    [tail, `rgba(255,224,138,${fill})`],
+    [head - SNAKE * 0.45, `rgba(255,224,138,${glow})`],
+    [head, `rgba(255,255,255,${glow})`],
+    [head + 0.004, CLEAR],
+    [1, CLEAR],
+  ];
+  // MapLibre needs strictly increasing stops between 0 and 1.
+  const stops: Stop[] = [];
+  for (const [at, color] of raw) {
+    const prev = stops.at(-1)?.[0] ?? -1;
+    const x = Math.min(1, Math.max(at, prev + 1e-5));
+    if (x > prev && x <= 1) stops.push([x, color]);
+  }
+  return ["interpolate", ["linear"], ["line-progress"], ...stops.flat()] as unknown as ExpressionSpecification;
+}
+const NO_CHARGE = ["interpolate", ["linear"], ["line-progress"], 0, CLEAR, 1, CLEAR] as unknown as ExpressionSpecification;
+
 export interface MarkerState {
   count: number;
   /** Highlighted as the drop target while a song is being dragged. */
@@ -133,6 +161,7 @@ export function CourseMap({
   dragging = false,
   onSelect,
   className = "",
+  charge = null,
   ref,
 }: {
   markers: MarkerState[];
@@ -140,12 +169,15 @@ export function CourseMap({
   dragging?: boolean;
   onSelect?(n: number): void;
   className?: string;
+  /** A song just landed on mile `n`: run the charge-up to it. `key` changes for each new song. */
+  charge?: { n: number; key: number } | null;
   ref?: Ref<CourseMapHandle>;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<MLMap | null>(null);
   const [wraps, setWraps] = useState<HTMLElement[]>([]);
   const [layout, setLayout] = useState<{ mode: Mode; offsets: Offset[] }>({ mode: "full", offsets: [] });
+  const [pulse, setPulse] = useState<{ n: number; key: number } | null>(null);
   const onSelectRef = useRef(onSelect);
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -262,6 +294,7 @@ export function CourseMap({
       m.on("load", () => {
         m.addSource("course", {
           type: "geojson",
+          lineMetrics: true, // lets the charge-up gradient run along the line
           data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: course.points.map((p) => [p.lon, p.lat]) } },
         });
         m.addLayer({
@@ -277,6 +310,13 @@ export function CourseMap({
           source: "course",
           layout: { "line-cap": "round", "line-join": "round" },
           paint: { "line-color": "#F7D3D8", "line-width": 3 },
+        });
+        m.addLayer({
+          id: "course-charge",
+          type: "line",
+          source: "course",
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: { "line-width": 9, "line-blur": 2.5, "line-gradient": NO_CHARGE },
         });
         const look = makePointLookup(course);
         const els = MILES.map((mile) => {
@@ -300,6 +340,43 @@ export function CourseMap({
       map.current = null;
     };
   }, []);
+
+  // Charge-up: the snake runs from the start to the mile, the line fills behind it, then it fades and the marker flashes.
+  useEffect(() => {
+    const m = map.current;
+    if (!charge || !m || !wraps.length || !m.getLayer("course-charge")) return;
+    const target = Math.min(1, (MILES.find((x) => x.n === charge.n)?.d ?? 0) / RACE.distance);
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const run = reduced ? 0 : 450 + 1150 * target;
+    const fade = reduced ? 0 : 650;
+    const t0 = performance.now();
+    let raf = 0;
+    let flashed = false;
+    const frame = (t: number) => {
+      const el = t - t0;
+      if (el < run) {
+        const k = 1 - Math.pow(1 - el / run, 3); // ease out
+        m.setPaintProperty("course-charge", "line-gradient", chargeGradient(target * k, 0.7, 1));
+      } else if (el < run + fade) {
+        if (!flashed) {
+          flashed = true;
+          setPulse({ n: charge.n, key: charge.key });
+        }
+        const k = 1 - (el - run) / fade;
+        m.setPaintProperty("course-charge", "line-gradient", chargeGradient(target, 0.7 * k, k));
+      } else {
+        if (!flashed) setPulse({ n: charge.n, key: charge.key });
+        m.setPaintProperty("course-charge", "line-gradient", NO_CHARGE);
+        return;
+      }
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(raf);
+      m.setPaintProperty("course-charge", "line-gradient", NO_CHARGE);
+    };
+  }, [charge, wraps.length]);
 
   // Lift the highlighted marker above its neighbors (each marker is its own stacking context).
   useEffect(() => {
@@ -330,6 +407,7 @@ export function CourseMap({
             state={markers[i] ?? { count: 0 }}
             perMile={perMile}
             dragging={dragging}
+            pulseKey={pulse?.n === MILES[i].n ? pulse.key : undefined}
             onSelect={() => onSelectRef.current?.(MILES[i].n)}
           />,
           wrap,
@@ -349,6 +427,7 @@ function MarkerCard({
   state,
   perMile,
   dragging,
+  pulseKey,
   onSelect,
 }: {
   n: number;
@@ -359,6 +438,8 @@ function MarkerCard({
   state: MarkerState;
   perMile: number;
   dragging: boolean;
+  /** Changes when the charge-up reaches this marker, which restarts its flash. */
+  pulseKey?: number;
   onSelect(): void;
 }) {
   const full = state.count >= perMile;
@@ -375,8 +456,10 @@ function MarkerCard({
       />
       <span aria-hidden className="pointer-events-none absolute -left-[4px] -top-[4px] h-2 w-2 rounded-full border-2 border-pink bg-ink" />
       <button
+        key={pulseKey ?? "still"}
         type="button"
         data-drop-mile={n}
+        data-charged={pulseKey ? "" : undefined}
         data-full={full || undefined}
         onClick={onSelect}
         aria-label={`${mileLabel(n)}, ${title}: ${state.count} of ${perMile} songs`}
@@ -390,7 +473,9 @@ function MarkerCard({
               : full
                 ? "bg-ink/90 ring-1 ring-pink/60"
                 : "bg-ink/85 ring-1 ring-pink/25 hover:scale-110"
-        } ${dragging && full && !state.hot ? "opacity-40" : ""} ${dragging && !full && !state.hot ? "ring-pink/70" : ""}`}
+        } ${dragging && full && !state.hot ? "opacity-40" : ""} ${dragging && !full && !state.hot ? "ring-pink/70" : ""} ${
+          pulseKey ? "animate-[charge_0.9s_ease-out]" : ""
+        }`}
         style={{ width: w, height: h, left: offset.dx - w / 2, top: offset.dy - h / 2 }}
       >
         {mode === "full" ? (

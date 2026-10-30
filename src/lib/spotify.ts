@@ -129,10 +129,12 @@ async function findTrack(s: PlaylistSong): Promise<string | null> {
 }
 
 /**
- * Save songs, in order, as a brand new private playlist. Songs without a Spotify link are looked up
- * by title and artist first. Returns the playlist's open.spotify.com link and any songs it couldn't find.
+ * Save songs, in order, to Spotify. With `existingId`, that playlist's songs are replaced, so a
+ * playlist already downloaded on the runner's phone just updates; otherwise (or if it's gone) a new
+ * private playlist is made. Songs without a Spotify link are looked up by title and artist first.
+ * Returns the playlist's link and id, and any songs it couldn't find.
  */
-export async function savePlaylist(name: string, description: string, songs: PlaylistSong[]) {
+export async function savePlaylist(name: string, description: string, songs: PlaylistSong[], existingId?: string) {
   const uris: string[] = [];
   const missing: PlaylistSong[] = [];
   for (const s of songs) {
@@ -141,6 +143,21 @@ export async function savePlaylist(name: string, description: string, songs: Pla
     else missing.push(s);
   }
   if (!uris.length) throw new Error("Couldn't find any of these songs on Spotify.");
+
+  if (existingId) {
+    try {
+      // PUT replaces everything with the first 100; the rest are added after.
+      await api(`/playlists/${existingId}/items`, { method: "PUT", body: JSON.stringify({ uris: uris.slice(0, 100) }) });
+      for (let i = 100; i < uris.length; i += 100) {
+        await api(`/playlists/${existingId}/items`, { method: "POST", body: JSON.stringify({ uris: uris.slice(i, i + 100) }) });
+      }
+      return { url: `https://open.spotify.com/playlist/${existingId}`, id: existingId, missing, updated: true };
+    } catch (e) {
+      // Deleted or no longer ours: make a fresh one. A signed-out session still needs to be reported.
+      if (!spotifyConnected()) throw e;
+    }
+  }
+
   const pl = await api<{ id: string; external_urls: { spotify: string } }>("/me/playlists", {
     method: "POST",
     body: JSON.stringify({ name, description, public: false }),
@@ -148,5 +165,5 @@ export async function savePlaylist(name: string, description: string, songs: Pla
   for (let i = 0; i < uris.length; i += 100) {
     await api(`/playlists/${pl.id}/items`, { method: "POST", body: JSON.stringify({ uris: uris.slice(i, i + 100) }) });
   }
-  return { url: pl.external_urls.spotify, missing };
+  return { url: pl.external_urls.spotify, id: pl.id, missing, updated: false };
 }

@@ -12,7 +12,7 @@ test("friends can drag a song onto the map from a phone", async ({ page, request
   // Picking a song scrolls the map into view, with the song held in a tray at the bottom.
   await expect(marker(page, 16)).toBeInViewport();
   await dragSongTo(page, 16);
-  await expect(page.getByRole("status")).toHaveText("Added to Mile 16 · First Avenue");
+  await expect(page.getByRole("status")).toContainText("Added to Mile 16 · First Avenue");
   await expect(marker(page, 16)).toHaveAccessibleName("Mile 16, First Avenue: 1 of 3 songs");
 });
 

@@ -71,8 +71,8 @@ export const song = (title: string, artist: string, idChar?: string) => ({
   ...(idChar ? { spotifyId: sid(idChar), uri: `spotify:track:${sid(idChar)}` } : {}),
 });
 
-export async function createRace(request: APIRequestContext, runnerName = "Matt Lebel") {
-  const res = await request.post("/api/races", { data: { runnerName } });
+export async function createRace(request: APIRequestContext, runnerName = "Matt Lebel", extra: { bib?: string; startTime?: string; paceSec?: number } = {}) {
+  const res = await request.post("/api/races", { data: { runnerName, ...extra } });
   expect(res.ok()).toBe(true);
   return (await res.json()) as { id: string; manageKey: string; shareUrl: string; manageUrl: string };
 }

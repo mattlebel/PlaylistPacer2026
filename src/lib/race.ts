@@ -83,6 +83,56 @@ export function fmtTimeOfDay(date: Date) {
   return new Intl.DateTimeFormat("en-US", { timeZone: RACE.timeZone, hour: "numeric", minute: "2-digit" }).format(date);
 }
 
+/** Approximate wave start times. Runners should check their own race confirmation. */
+export const WAVES = [
+  { label: "Wave 1", time: "09:10" },
+  { label: "Wave 2", time: "09:35" },
+  { label: "Wave 3", time: "10:00" },
+  { label: "Wave 4", time: "10:25" },
+  { label: "Wave 5", time: "10:50" },
+] as const;
+
+export const DEFAULT_START = WAVES[0].time;
+/** 11:00 per mile. */
+export const DEFAULT_PACE_SEC = 660;
+export const MILES_IN_MARATHON = RACE.distance / METERS_PER_MILE;
+
+/** "09:10" on race day → that instant (EST). */
+export function startInstant(hhmm: string) {
+  return new Date(`${RACE.date}T${hhmm}:00${RACE.utcOffset}`);
+}
+
+/** "09:10" back out of a stored start instant. */
+export function startHhmm(start: Date) {
+  return new Intl.DateTimeFormat("en-GB", { timeZone: RACE.timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(start);
+}
+
+export function waveLabel(hhmm: string) {
+  return WAVES.find((w) => w.time === hhmm)?.label;
+}
+
+/** When the runner reaches a mile marker at an even pace. Mile 26's marker is reached before the finish. */
+export function etaAtMile(start: Date, paceSec: number, n: number) {
+  return new Date(start.getTime() + n * paceSec * 1000);
+}
+
+export function finishEta(start: Date, paceSec: number) {
+  return new Date(start.getTime() + MILES_IN_MARATHON * paceSec * 1000);
+}
+
+/** 660 → "11:00". */
+export function fmtPace(sec: number) {
+  return `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
+}
+
+/** "11:00" or "11" → 660, or null if it doesn't look like a pace. */
+export function parsePace(text: string): number | null {
+  const m = text.trim().match(/^(\d{1,2})(?::([0-5]\d))?$/);
+  if (!m) return null;
+  const sec = Number(m[1]) * 60 + Number(m[2] ?? 0);
+  return sec >= 300 && sec <= 1200 ? sec : null;
+}
+
 /**
  * The first version of the app had 16 named "moments" with one song each. Songs planted
  * there move to the mile marker at or just before that moment.

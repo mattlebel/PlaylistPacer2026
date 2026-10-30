@@ -1,5 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { ADDING_CLOSES_AT, fmtTimeOfDay, LEGACY_MOMENT_MILE, MILES, mileByN, mileLabel, RACE, raceCourse, SONGS_PER_MILE } from "@/lib/race";
+import {
+  ADDING_CLOSES_AT,
+  DEFAULT_PACE_SEC,
+  etaAtMile,
+  finishEta,
+  fmtPace,
+  fmtTimeOfDay,
+  LEGACY_MOMENT_MILE,
+  MILES,
+  mileByN,
+  mileLabel,
+  parsePace,
+  RACE,
+  raceCourse,
+  SONGS_PER_MILE,
+  startHhmm,
+  startInstant,
+  waveLabel,
+} from "@/lib/race";
 import { METERS_PER_MILE } from "@/lib/geo";
 import { COURSE_NOTES, COURSE_NOTES_CREDIT } from "@/lib/courseNotes";
 
@@ -62,5 +80,29 @@ describe("times", () => {
 
   it("formats clock times in New York", () => {
     expect(fmtTimeOfDay(new Date("2026-11-01T17:25:00Z"))).toBe("12:25 PM");
+  });
+
+  it("estimates each mile at an even pace from the wave start", () => {
+    const start = startInstant("09:10");
+    expect(start.toISOString()).toBe("2026-11-01T14:10:00.000Z");
+    expect(startHhmm(start)).toBe("09:10");
+    expect(waveLabel("09:10")).toBe("Wave 1");
+    expect(waveLabel("09:12")).toBeUndefined();
+    expect(DEFAULT_PACE_SEC).toBe(660);
+    expect(fmtTimeOfDay(etaAtMile(start, 660, 0))).toBe("9:10 AM");
+    expect(fmtTimeOfDay(etaAtMile(start, 660, 15))).toBe("11:55 AM");
+    expect(fmtTimeOfDay(etaAtMile(start, 660, 26))).toBe("1:56 PM");
+    expect(fmtTimeOfDay(finishEta(start, 660))).toBe("1:58 PM");
+  });
+
+  it("reads and writes paces", () => {
+    expect(fmtPace(660)).toBe("11:00");
+    expect(fmtPace(545)).toBe("9:05");
+    expect(parsePace("11:00")).toBe(660);
+    expect(parsePace("9:05")).toBe(545);
+    expect(parsePace("11")).toBe(660);
+    expect(parsePace("4:30")).toBeNull();
+    expect(parsePace("11:75")).toBeNull();
+    expect(parsePace("fast")).toBeNull();
   });
 });

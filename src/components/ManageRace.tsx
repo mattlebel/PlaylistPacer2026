@@ -5,7 +5,8 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, type Manage } from "@/lib/client/api";
 import { manageKeyFor } from "@/lib/client/keys";
-import { mileByN, mileLabel, RACE } from "@/lib/race";
+import { etaAtMile, finishEta, fmtPace, fmtTimeOfDay, mileByN, mileLabel, RACE, startHhmm, waveLabel } from "@/lib/race";
+import { RaceDetailsFields, useRaceDetails } from "./RaceDetails";
 import { savePlaylist, spotifyConfigured, spotifyConnected, spotifyTrackUrl, startSpotifyLogin } from "@/lib/spotify";
 import { SpotifyIcon } from "./brand";
 import { ChipStack } from "./ChipStack";
@@ -78,6 +79,7 @@ export function ManageRace() {
           {RACE.name} · {RACE.dateLabel}
         </div>
         <h1 className="mt-2 font-display text-5xl font-extrabold tracking-tight">Your race, {name}</h1>
+        <RaceSummary data={data} manageKey={key} onSaved={() => load(key)} onToast={setToast} />
       </section>
 
       {isNew && (
@@ -117,12 +119,19 @@ export function ManageRace() {
         </p>
       </section>
 
-      <Playlist data={data} name={name} />
+      <Playlist data={data} name={name} manageKey={key} />
 
       <section>
-        <h2 className="mb-3 font-display text-2xl font-bold">
-          {data.total} {data.total === 1 ? "song" : "songs"} on {data.milesWithSongs} {data.milesWithSongs === 1 ? "mile" : "miles"}
-        </h2>
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
+          <h2 className="font-display text-2xl font-bold">
+            {data.total} {data.total === 1 ? "song" : "songs"} on {data.milesWithSongs} {data.milesWithSongs === 1 ? "mile" : "miles"}
+          </h2>
+          {data.total > 0 && (
+            <button className="text-sm font-semibold underline underline-offset-4 hover:text-chalk" onClick={() => downloadCsv(data)}>
+              Download as a spreadsheet (CSV)
+            </button>
+          )}
+        </div>
         {withSongs.length === 0 ? (
           <p className="text-blush">Nothing yet. Share your link and watch the map fill up.</p>
         ) : (
@@ -133,6 +142,7 @@ export function ManageRace() {
                   <ChipStack count={m.songs.length} max={data.perMile} size="sm" />
                   <span className="font-mono text-[10px] uppercase text-pink/70">{mileLabel(m.n)}</span>
                   <span className="font-display text-lg font-bold">{mileByN(m.n)?.title}</span>
+                  <span className="ml-auto font-mono text-[11px] text-pink/70">~{fmtTimeOfDay(etaAtMile(new Date(data.startTime), data.paceSec, m.n))}</span>
                 </div>
                 <ul className="space-y-2">
                   {m.songs.map((e) => (
@@ -149,11 +159,93 @@ export function ManageRace() {
   );
 }
 
-function Playlist({ data, name }: { data: Manage; name: string }) {
+/** "Wave 1 · 9:10 AM · 11:00/mile · bib 13302 · finish ~1:58 PM", with an editor. */
+function RaceSummary({ data, manageKey, onSaved, onToast }: { data: Manage; manageKey: string; onSaved(): void; onToast(m: string): void }) {
+  const start = new Date(data.startTime);
+  const hhmm = startHhmm(start);
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const details = useRaceDetails({ startTime: hhmm, paceSec: data.paceSec, bib: data.bib });
+  const parts = [
+    `${waveLabel(hhmm) ?? "Start"} · ${fmtTimeOfDay(start)}`,
+    `${fmtPace(data.paceSec)}/mile`,
+    data.bib ? `bib ${data.bib}` : null,
+    `finish ~${fmtTimeOfDay(finishEta(start, data.paceSec))}`,
+  ].filter(Boolean);
+
+  const save = async () => {
+    if (!details.valid) return;
+    setBusy(true);
+    try {
+      await api(`/api/races/${data.id}/manage`, {
+        method: "PATCH",
+        key: { header: "x-manage-key", value: manageKey },
+        body: JSON.stringify({ ...details.values, bib: details.values.bib ?? null }),
+      });
+      setEditing(false);
+      onToast("Saved. Times along the course are updated.");
+      onSaved();
+    } catch (e) {
+      onToast(e instanceof ApiError ? e.message : "Couldn't save. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-2">
+      <p className="text-blush">
+        {parts.join(" · ")}{" "}
+        <button className="ml-1 text-sm font-semibold underline underline-offset-4 hover:text-chalk" onClick={() => setEditing(!editing)}>
+          {editing ? "Cancel" : "Edit"}
+        </button>
+      </p>
+      {editing && (
+        <div className="panel mt-4 space-y-4 p-5">
+          <RaceDetailsFields details={details} />
+          <button className="btn bg-pink px-6 py-3 text-sm" disabled={!details.valid || busy} onClick={save}>
+            {busy ? "Saving…" : "Save race details"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Every song as a spreadsheet: a backup that outlives the free database, and handy for building playlists by hand. */
+function downloadCsv(data: Manage) {
+  const cell = (v: string | number | undefined) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const start = new Date(data.startTime);
+  const rows = [
+    ["Mile", "Spot", "Around", "Song", "Artist", "From", "Note", "Spotify link"],
+    ...data.miles.flatMap((m) =>
+      m.songs.map((e) => [
+        mileLabel(m.n),
+        mileByN(m.n)?.title,
+        fmtTimeOfDay(etaAtMile(start, data.paceSec, m.n)),
+        e.song.title,
+        e.song.artist,
+        e.isRunner ? "(your pick)" : e.from,
+        e.message,
+        e.song.spotifyId ? spotifyTrackUrl(e.song.spotifyId) : "",
+      ]),
+    ),
+  ];
+  const csv = rows.map((r) => r.map(cell).join(",")).join("\r\n");
+  const url = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: `${first(data.runnerName).toLowerCase()}-nyc-marathon-songs.csv` });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function Playlist({ data, name, manageKey }: { data: Manage; name: string; manageKey: string }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [link, setLink] = useState<string | null>(null);
   const [missing, setMissing] = useState<string[]>([]);
+  const [updated, setUpdated] = useState(false);
   const all = data.miles.flatMap((m) => m.songs);
 
   const save = async () => {
@@ -165,8 +257,18 @@ function Playlist({ data, name }: { data: Manage; name: string }) {
         `${name}'s ${RACE.name}`,
         "Picked by friends and family with Playlist Pacer. In course order, start to finish. No shuffle!",
         all.map((e) => e.song),
+        data.playlistId,
       );
       setLink(res.url);
+      setUpdated(res.updated);
+      // Remember it, so the next save updates this playlist instead of making another.
+      if (res.id !== data.playlistId) {
+        await api(`/api/races/${data.id}/manage`, {
+          method: "PATCH",
+          key: { header: "x-manage-key", value: manageKey },
+          body: JSON.stringify({ playlistId: res.id }),
+        }).catch(() => {});
+      }
       setMissing(res.missing.map((s) => `${s.title} (${s.artist})`));
     } catch (e) {
       setMsg((e as Error).message);
@@ -180,19 +282,24 @@ function Playlist({ data, name }: { data: Manage; name: string }) {
       <div>
         <h2 className="font-display text-2xl font-bold">Race-day playlist</h2>
         <p className="mt-1 text-blush">
-          Every song, in course order, saved to your Spotify. Adding closes at 6am on race morning, so save it after that to get them all
-          (you can save again any time). Then download it in Spotify so it plays without signal.
+          Every song, in course order, saved to your Spotify. Save it any time; saving again updates the same playlist, so the copy
+          downloaded on your phone just refreshes. Adding closes at 6am on race morning, so do a last save after that, then download it
+          in Spotify so it plays without signal.
         </p>
       </div>
       {spotifyConfigured() ? (
         <div className="flex flex-wrap items-center gap-3">
           <button className="btn bg-pink px-6 py-3 text-sm" onClick={save} disabled={busy || !all.length}>
             <SpotifyIcon size={18} />
-            {spotifyConnected() ? (busy ? "Saving…" : `Save ${all.length} ${all.length === 1 ? "song" : "songs"} to Spotify`) : "Connect Spotify to save the playlist"}
+            {spotifyConnected()
+              ? busy
+                ? "Saving…"
+                : `${data.playlistId ? "Update" : "Save"} ${all.length} ${all.length === 1 ? "song" : "songs"} ${data.playlistId ? "in" : "to"} Spotify`
+              : "Connect Spotify to save the playlist"}
           </button>
           {link && (
             <a href={link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-semibold underline">
-              <SpotifyIcon size={16} /> Open Spotify
+              <SpotifyIcon size={16} /> {updated ? "Updated. Open Spotify" : "Saved. Open Spotify"}
             </a>
           )}
           {msg && <span className="text-sm text-coral">{msg}</span>}

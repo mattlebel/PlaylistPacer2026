@@ -17,6 +17,31 @@ test("the runner sees every song with full names and can remove any", async ({ p
   await expect(page.getByRole("heading", { name: "2 songs on 2 miles" })).toBeVisible();
 });
 
+test("the runner edits race details and downloads every song as a spreadsheet", async ({ page, request }) => {
+  const race = await createRace(request, "Matt Lebel", { bib: "13302" });
+  await addViaApi(request, race.id, { mile: 15, name: "Sarah Connor", song: song("Mr. Brightside", "The Killers", "b") });
+  await page.goto(managePath(race));
+  await expect(page.getByText("Wave 1 · 9:10 AM · 11:00/mile · bib 13302 · finish ~1:58 PM")).toBeVisible();
+  await expect(page.getByText("~11:55 AM")).toBeVisible();
+
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download as a spreadsheet (CSV)" }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toBe("matt-nyc-marathon-songs.csv");
+  const csv = (await (await import("node:fs/promises")).readFile((await file.path())!, "utf8")).replace(/^\ufeff/, "");
+  expect(csv.split("\r\n")).toEqual([
+    '"Mile","Spot","Around","Song","Artist","From","Note","Spotify link"',
+    `"Mile 15","Queensboro Bridge","11:55 AM","Mr. Brightside","The Killers","Sarah Connor","","https://open.spotify.com/track/${"b".repeat(22)}"`,
+  ]);
+
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Start wave").selectOption("09:35");
+  await page.getByLabel("Pace per mile").fill("10:00");
+  await page.getByRole("button", { name: "Save race details" }).click();
+  await expect(page.getByText("Wave 2 · 9:35 AM · 10:00/mile · bib 13302 · finish ~1:57 PM")).toBeVisible();
+  await expect(page.getByText("~12:05 PM")).toBeVisible();
+});
+
 test("race morning: adding closes at 6am, and the map stays up", async ({ page, request }) => {
   const race = await createRace(request);
   await addViaApi(request, race.id, { mile: 13, name: "Coach", song: song("Lose Yourself", "Eminem") });
