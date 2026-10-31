@@ -9,12 +9,8 @@ test("the runner sees every song with full names and can remove any", async ({ p
   await expect(page.getByRole("heading", { name: "3 songs on 2 miles" })).toBeVisible();
   await expect(page.getByText("from Sarah Connor")).toBeVisible();
   await expect(page.getByText("from Dana")).toBeVisible();
-  // Wrapped and a leaderboard, all along on the runner's page.
-  const wrapped = page.getByRole("region", { name: "Race playlist, wrapped" });
-  await expect(wrapped.getByText("So far · wrapped")).toBeVisible();
-  await expect(wrapped.getByText("Leaderboard · who added the most")).toBeVisible();
-  await expect(wrapped.getByText("Top artist:")).toHaveCount(0); // no artist twice yet
-  await expect(wrapped.getByRole("listitem").filter({ hasText: "Sarah" })).toContainText("1 song");
+  // Wrapped and the leaderboard wait until adding closes.
+  await expect(page.getByRole("region", { name: "Race playlist, wrapped" })).toHaveCount(0);
   // No Spotify keys in tests: the page says how to build the playlist instead.
   await expect(page.getByText(/Spotify isn't connected to this app yet/)).toBeVisible();
 
@@ -67,6 +63,13 @@ test("race morning: adding closes at 6am, and the map stays up", async ({ page, 
 
   const res = await request.post(`/api/races/${race.id}/plants`, { data: { mile: 2, name: "Sam", song: song("Late", "X") } });
   expect(res.status()).toBe(403);
+
+  // The runner's page has the recap now too.
+  await page.goto(managePath(race));
+  const mine = page.getByRole("region", { name: "Race playlist, wrapped" });
+  await expect(mine.getByText("Leaderboard · who added the most")).toBeVisible();
+  await expect(mine.getByRole("listitem").filter({ hasText: "Coach" }).first()).toContainText("2 songs");
+  await page.goto(`/r/${race.id}`);
 
   // After the race, the page is a keepsake.
   setClock(TIMES.afterRace);

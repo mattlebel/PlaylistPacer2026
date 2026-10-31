@@ -68,7 +68,7 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
   - Adding closes at 6am on race morning.
 - **Wrapped and a leaderboard:** totals (songs, music time, artists, friends), how much of the race
   the music covers at the runner's pace, top artists, the longest track, and who added the most
-  songs (grouped by first name). Always on the runner's page; on the friends' page once adding
+  songs (grouped by first name). Shown on both the runner's page and the friends' page once adding
   closes, as a race recap (`src/lib/wrapped.ts`, `src/components/Wrapped.tsx`). After the cutoff
   the friends' page skips the welcome popup, and after the runner's estimated finish it becomes a
   keepsake: "Matt's NYC Marathon soundtrack".

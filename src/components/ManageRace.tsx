@@ -87,7 +87,8 @@ export function ManageRace() {
         <RaceSummary data={data} manageKey={key} onSaved={() => load(key)} onToast={setToast} />
       </section>
 
-      <Wrapped stats={wrap(data.miles, data.runnerName, data.paceSec)} runner={name} label={data.open ? "So far · wrapped" : "Wrapped"} />
+      {/* Wrapped and the leaderboard: a recap once adding closes, same as on the friends' page. */}
+      {!data.open && <Wrapped stats={wrap(data.miles, data.runnerName, data.paceSec)} runner={name} label="Race recap · wrapped" />}
 
       {isNew && (
         <section className="stk bg-pink p-5">
