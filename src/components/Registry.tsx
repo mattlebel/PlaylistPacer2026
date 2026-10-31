@@ -13,6 +13,7 @@ import { songKey } from "@/lib/songKey";
 import { cheer, cowbell, roar, setSoundOn, soundOn, welcome } from "@/lib/sounds";
 import type { Song } from "@/lib/types";
 import { SpotifyIcon } from "./brand";
+import { faq } from "@/lib/faq";
 import { wrap } from "@/lib/wrapped";
 import { Bib } from "./Bib";
 import { Wrapped } from "./Wrapped";
@@ -392,6 +393,9 @@ export function Registry() {
           How it works
         </button>
       )}
+      <a href="#faq-title" className="underline underline-offset-4 hover:text-chalk">
+        FAQ
+      </a>
       <button
         className="underline underline-offset-4 hover:text-chalk"
         aria-pressed={sound}
@@ -551,6 +555,25 @@ export function Registry() {
         <Feed recent={data.recent} runner={runner} offset={offset} onOpen={setOpen} />
         </div>
       </div>
+
+      <section aria-labelledby="faq-title" className="scroll-mt-6">
+        <h2 id="faq-title" className="font-display text-2xl font-bold">
+          Questions friends asked
+        </h2>
+        <div className="mt-4 grid items-start gap-x-6 gap-y-2 lg:grid-cols-2">
+          {faq({ runner, paceSec: data.paceSec, perMile: data.perMile, maxPerPerson: data.maxPerPerson, bib: data.bib, open: data.open }).map((f) => (
+            <details key={f.q} className="group rounded-2xl bg-ink/25 px-4 py-3 open:bg-ink/35">
+              <summary className="flex cursor-pointer list-none items-start justify-between gap-3 font-semibold text-chalk [&::-webkit-details-marker]:hidden">
+                {f.q}
+                <span aria-hidden className="mt-0.5 shrink-0 text-pink/70 transition group-open:rotate-45">
+                  ＋
+                </span>
+              </summary>
+              <p className="mt-2 text-sm leading-relaxed text-blush">{f.a}</p>
+            </details>
+          ))}
+        </div>
+      </section>
 
 
       {openMile && (

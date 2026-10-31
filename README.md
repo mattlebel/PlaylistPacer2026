@@ -72,6 +72,11 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
   closes, as a race recap (`src/lib/wrapped.ts`, `src/components/Wrapped.tsx`). After the cutoff
   the friends' page skips the welcome popup, and after the runner's estimated finish it becomes a
   keepsake: "Matt's NYC Marathon soundtrack".
+- **FAQ:** "Questions friends asked" under the map (and an "FAQ" link by "How it works"): whether
+  songs play exactly at the mile, whether the last song on a mile gets cut off when the runner is
+  fast (no: the playlist plays straight through), play order, skipping, limits, removing a song,
+  the cutoff, and race-day tracking. The answers use the runner's name, pace and bib; edit the
+  wording in `src/lib/faq.ts`. Questions about adding drop off once adding closes.
 - **Runner's private page:**
   - See every song with full names, and remove any of them.
   - Edit wave, pace and bib; see the estimated time at every mile.

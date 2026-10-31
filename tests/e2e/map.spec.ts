@@ -563,3 +563,19 @@ test("one person can add up to 15 songs", async ({ page, request }) => {
   expect(res.status()).toBe(409);
   expect((await res.json()).code).toBe("person_limit");
 });
+
+test("an FAQ answers what friends ask, like whether the last song on a mile gets cut off", async ({ page, request }) => {
+  const race = await createRace(request, "Matt Lebel", { bib: "13302" });
+  await openMap(page, race.id);
+  await page.getByRole("link", { name: "FAQ" }).click();
+  const faq = page.getByRole("region", { name: "Questions friends asked" });
+  await expect(faq).toBeInViewport();
+  const q = faq.getByText("If Matt runs a mile faster, does song 3 on that mile get skipped or cut off?");
+  await expect(faq.getByText(/Nothing is skipped or cut short/)).toBeHidden();
+  await q.click();
+  await expect(faq.getByText(/Nothing is skipped or cut short/)).toBeVisible();
+  await faq.getByText("Does Matt get to skip songs?").click();
+  await expect(faq.getByText(/let it play straight through, start to finish/)).toBeVisible();
+  await faq.getByText("How can I follow Matt on race day?").click();
+  await expect(faq.getByText(/Search bib 13302 at liveresults\.nyrr\.org/)).toBeVisible();
+});
