@@ -1,4 +1,4 @@
-import { addViaApi, createRace, expect, managePath, setClock, song, test, TIMES, welcome } from "./fixtures";
+import { addViaApi, createRace, expect, managePath, setClock, song, test, TIMES } from "./fixtures";
 
 test("the runner sees every song with full names and can remove any", async ({ page, request }) => {
   const race = await createRace(request);
@@ -9,6 +9,12 @@ test("the runner sees every song with full names and can remove any", async ({ p
   await expect(page.getByRole("heading", { name: "3 songs on 2 miles" })).toBeVisible();
   await expect(page.getByText("from Sarah Connor")).toBeVisible();
   await expect(page.getByText("from Dana")).toBeVisible();
+  // Wrapped and a leaderboard, all along on the runner's page.
+  const wrapped = page.getByRole("region", { name: "Race playlist, wrapped" });
+  await expect(wrapped.getByText("So far · wrapped")).toBeVisible();
+  await expect(wrapped.getByText("Leaderboard · who added the most")).toBeVisible();
+  await expect(wrapped.getByText("Top artist:")).toHaveCount(0); // no artist twice yet
+  await expect(wrapped.getByRole("listitem").filter({ hasText: "Sarah" })).toContainText("1 song");
   // No Spotify keys in tests: the page says how to build the playlist instead.
   await expect(page.getByText(/Spotify isn't connected to this app yet/)).toBeVisible();
 
@@ -45,16 +51,29 @@ test("the runner edits race details and downloads every song as a spreadsheet", 
 test("race morning: adding closes at 6am, and the map stays up", async ({ page, request }) => {
   const race = await createRace(request);
   await addViaApi(request, race.id, { mile: 13, name: "Coach", song: song("Lose Yourself", "Eminem") });
+  await addViaApi(request, race.id, { mile: 20, name: "Coach Stu", song: song("Stronger", "Kanye West") });
   setClock(TIMES.raceMorning);
 
   await page.goto(`/r/${race.id}`);
-  await welcome(page);
+  // No welcome popup or name once adding has closed: straight to the recap.
+  await expect(page.getByRole("dialog", { name: "How it works" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Adding is closed" })).toBeVisible();
+  await expect(page.getByText("Adding songs is closed. Matt is heading to the start!", { exact: false })).toBeVisible();
+  const recap = page.getByRole("region", { name: "Race playlist, wrapped" });
+  await expect(recap.getByText("Race recap · wrapped")).toBeVisible();
+  await expect(recap.getByRole("listitem").filter({ hasText: "Coach" }).first()).toContainText("2 songs");
   await expect(page.getByLabel("Search for a song")).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Live feed" }).getByText(/Coach added “Lose Yourself” to mile 13/)).toBeVisible();
 
   const res = await request.post(`/api/races/${race.id}/plants`, { data: { mile: 2, name: "Sam", song: song("Late", "X") } });
   expect(res.status()).toBe(403);
+
+  // After the race, the page is a keepsake.
+  setClock(TIMES.afterRace);
+  await page.reload();
+  await expect(page.getByText("Matt ran the NYC Marathon to the soundtrack you all built. Here's the recap.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Matt's NYC Marathon soundtrack" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Track Matt live/ })).toHaveCount(0);
 });
 
 test("an edit link from the first version still works", async ({ page, request }) => {

@@ -7,6 +7,8 @@ export const TIMES = {
   weeksBefore: "2026-10-20T12:00:00-04:00",
   // Adding closes at 6am race morning.
   raceMorning: "2026-11-01T06:30:00-05:00",
+  // Well after a 9:10 start at 11:00 a mile (finish ~1:58 PM).
+  afterRace: "2026-11-01T18:00:00-05:00",
 };
 
 /** Moves the server's clock (read per request via E2E_CLOCK_FILE). */

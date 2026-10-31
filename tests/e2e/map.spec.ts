@@ -422,7 +422,7 @@ test("after adding, it's clear you can keep going", async ({ page, request }) =>
   for (let i = 0, n = 0; n < 65; i++) {
     const mile = miles[i % miles.length];
     if (mile === 1 && i >= 26) continue; // leave room on mile 1
-    await addViaApi(request, race.id, { mile, song: song(`Filler ${i}`, "The Testers") });
+    await addViaApi(request, race.id, { mile, name: `Friend ${i}`, song: song(`Filler ${i}`, "The Testers") });
     n++;
   }
   await expect(page.getByText("66 of 81 spots filled")).toBeVisible({ timeout: 15_000 });
@@ -528,4 +528,38 @@ test("the song you're holding plays while you drag it, then the crowd roars as y
   await expect.poll(heard).toEqual(["welcome", "preview", "roar", "preview"]);
   await page.getByRole("button", { name: "Put this song back" }).click();
   await expect(page.getByRole("button", { name: "Drag Toxic onto a mile" })).toHaveCount(0);
+});
+
+test("one person can add up to 15 songs", async ({ page, request }) => {
+  const race = await createRace(request);
+  await openMap(page, race.id);
+  // This browser's device id, and 14 songs from it already (as if added one by one).
+  const device = "testdevice".padEnd(32, "0");
+  await page.evaluate((d) => localStorage.setItem("pp.device", d), device);
+  const keys: Record<string, string> = {};
+  for (let i = 0; i < 14; i++) {
+    const res = await request.post(`/api/races/${race.id}/plants`, {
+      data: { mile: 1 + (i % 25), name: "Dana", device, song: song(`Mine ${i}`, "Me") },
+    });
+    const j = (await res.json()) as { id: string; editKey: string };
+    keys[j.id] = j.editKey;
+  }
+  await addViaApi(request, race.id, { mile: 26, name: "Other", song: song("Not mine", "Them") });
+  await page.evaluate((k) => localStorage.setItem("pp.edit", JSON.stringify(k)), keys);
+  await page.reload();
+  await expect(page.getByText(/You've added 14 songs 🔥\. Keep them coming: you can add 1 more\./)).toBeVisible();
+
+  // The 15th is the last one.
+  await typeSong(page, "Juice", "Lizzo");
+  await page.getByLabel("Or choose a mile").selectOption({ label: "Start · Staten Island (3 left)" });
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("That's your 15! 🙌");
+  await expect(page.getByRole("status").getByRole("button", { name: "＋ Add another" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "That's your 15 🙌" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Search for a song" })).toHaveCount(0);
+
+  // The server holds the line too, even if the page is bypassed.
+  const res = await request.post(`/api/races/${race.id}/plants`, { data: { mile: 2, name: "Dana", device, song: song("Sneaky", "Me") } });
+  expect(res.status()).toBe(409);
+  expect((await res.json()).code).toBe("person_limit");
 });

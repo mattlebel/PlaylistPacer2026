@@ -9,7 +9,9 @@ import { etaAtMile, finishEta, fmtPace, fmtTimeOfDay, mileByN, mileLabel, RACE, 
 import { RaceDetailsFields, useRaceDetails } from "./RaceDetails";
 import { cheer } from "@/lib/sounds";
 import { savePlaylist, spotifyConfigured, spotifyConnected, spotifyTrackUrl, startSpotifyLogin } from "@/lib/spotify";
+import { wrap } from "@/lib/wrapped";
 import { SpotifyIcon } from "./brand";
+import { Wrapped } from "./Wrapped";
 import { PreviewButton, SpotifyPlayer } from "./SpotifyPlayer";
 import { usePreview } from "./usePreview";
 import { ChipStack } from "./ChipStack";
@@ -84,6 +86,8 @@ export function ManageRace() {
         <h1 className="mt-2 font-display text-5xl font-extrabold tracking-tight">Your race, {name}</h1>
         <RaceSummary data={data} manageKey={key} onSaved={() => load(key)} onToast={setToast} />
       </section>
+
+      <Wrapped stats={wrap(data.miles, data.runnerName, data.paceSec)} runner={name} label={data.open ? "So far · wrapped" : "Wrapped"} />
 
       {isNew && (
         <section className="stk bg-pink p-5">

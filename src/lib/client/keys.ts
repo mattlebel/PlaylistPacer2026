@@ -38,3 +38,19 @@ export const rememberEditKey = (plantId: string, key: string) => write("pp.edit"
 
 /** Races this device created, newest first (for the "your races" link on the home page). */
 export const myRaces = () => Object.keys(read("pp.manage"));
+
+let sessionDevice: string | null = null;
+/** A random id for this browser, kept on the device: how the server counts one person's songs. */
+export function deviceId() {
+  try {
+    let id = localStorage.getItem("pp.device");
+    if (!id) {
+      id = crypto.randomUUID().replace(/-/g, "");
+      localStorage.setItem("pp.device", id);
+    }
+    return id;
+  } catch {
+    // Private mode: one id for this visit.
+    return (sessionDevice ??= crypto.randomUUID().replace(/-/g, ""));
+  }
+}

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { MILES, SONGS_PER_MILE } from "@/lib/race";
+import { MAX_SONGS_PER_PERSON, MILES, SONGS_PER_MILE } from "@/lib/race";
 import { createDb, type Db } from "@/lib/server/db";
 import { addSong, AppError, createRace, deleteOwnSong, getManage, getOwnSong, getRegistry, removeSongAsRunner, songKey, updateRaceSettings } from "@/lib/server/repo";
 import { hashKey } from "@/lib/server/crypto";
@@ -151,6 +151,24 @@ describe("addSong", () => {
     for (let i = 0; i < SONGS_PER_MILE; i++) ids.push(await add(r.id, 8, `Song ${i}`));
     await deleteOwnSong(db, ids[1].id, ids[1].editKey, BEFORE);
     await expect(add(r.id, 8, "Back in")).resolves.toBeTruthy();
+  });
+
+  it("lets one person add up to 15 songs, counted by device (or by name without one)", async () => {
+    const r = await newRace();
+    const device = "d".repeat(32);
+    const mine = (i: number, name = "Dana") => addSong(db, r.id, { mile: i % 27, name, device, song: song(`Mine ${i}`) }, BEFORE);
+    const ids = [];
+    for (let i = 0; i < MAX_SONGS_PER_PERSON; i++) ids.push(await mine(i));
+    // Same device, any name: that's the limit.
+    await expectCode(mine(99, "Someone Else"), "person_limit");
+    // A different person (another device) with the same first name is fine.
+    await expect(addSong(db, r.id, { mile: 3, name: "Dana", device: "e".repeat(32), song: song("Other Dana") }, BEFORE)).resolves.toBeTruthy();
+    // Removing one of yours frees a spot.
+    await deleteOwnSong(db, ids[0].id, ids[0].editKey, BEFORE);
+    await expect(mine(100)).resolves.toBeTruthy();
+    // Without a device (API callers), the name counts.
+    for (let i = 0; i < MAX_SONGS_PER_PERSON; i++) await add(r.id, i % 27, `Named ${i}`, "Lee");
+    await expectCode(add(r.id, 5, "Named extra", " lee "), "person_limit");
   });
 
   it("blocks the same song anywhere on the course, including other versions", async () => {

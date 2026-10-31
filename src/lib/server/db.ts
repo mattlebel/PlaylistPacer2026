@@ -65,6 +65,8 @@ const MIGRATIONS = [
   "alter table races add column if not exists spotify_playlist_id text",
   "alter table plants add column if not exists mile integer",
   "alter table plants add column if not exists slot integer",
+  // Which device added a song (hashed), for the per-person limit.
+  "alter table plants add column if not exists device_hash text",
   "alter table plants alter column moment drop not null",
   "alter table plants alter column name drop not null",
   "alter table plants drop constraint if exists plants_moment_unique",

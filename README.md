@@ -62,7 +62,16 @@ Built for the **2026 NYC Marathon** (Sunday, November 1). Everything is set up f
   - Up to 3 songs per mile (about a mile of music at a typical pace). Each song takes a numbered spot, so two people dropping at once can't
     overfill a mile.
   - No duplicate songs anywhere on the course, including other versions of the same song.
+  - Up to 15 songs per person, so everyone gets a turn. Counted by a random id each browser keeps
+    (stored hashed), or by name for songs added without one; removing one of yours frees a spot, and
+    the runner's own picks don't count. The page shows how many you have left.
   - Adding closes at 6am on race morning.
+- **Wrapped and a leaderboard:** totals (songs, music time, artists, friends), how much of the race
+  the music covers at the runner's pace, top artists, the longest track, and who added the most
+  songs (grouped by first name). Always on the runner's page; on the friends' page once adding
+  closes, as a race recap (`src/lib/wrapped.ts`, `src/components/Wrapped.tsx`). After the cutoff
+  the friends' page skips the welcome popup, and after the runner's estimated finish it becomes a
+  keepsake: "Matt's NYC Marathon soundtrack".
 - **Runner's private page:**
   - See every song with full names, and remove any of them.
   - Edit wave, pace and bib; see the estimated time at every mile.

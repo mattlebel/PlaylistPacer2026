@@ -18,6 +18,8 @@ export const RACE = {
 
 /** How many songs fit on one mile marker: about a mile of music at a typical marathon pace. */
 export const SONGS_PER_MILE = 3;
+/** The most songs one person can add, so everyone gets a turn. */
+export const MAX_SONGS_PER_PERSON = 15;
 
 /** Adding songs closes at 6am race morning, so the runner can save the final playlist before heading out. */
 export const ADDING_CLOSES_AT = new Date(`${RACE.date}T06:00:00${RACE.utcOffset}`);

@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { ADDING_CLOSES_AT, DEFAULT_PACE_SEC, DEFAULT_START, MILES, RACE, SONGS_PER_MILE, mileLabel, startInstant } from "../race";
+import { ADDING_CLOSES_AT, DEFAULT_PACE_SEC, DEFAULT_START, MAX_SONGS_PER_PERSON, MILES, RACE, SONGS_PER_MILE, mileLabel, startInstant } from "../race";
 import type { Song } from "../types";
 import { songKey } from "../songKey";
 import { hashKey, keyMatches, newId, newKey } from "./crypto";
@@ -8,7 +8,7 @@ import { uniqueViolation, type Db } from "./db";
 
 export class AppError extends Error {
   constructor(
-    public code: "invalid" | "not_found" | "forbidden" | "mile_full" | "song_taken" | "closed" | "limit",
+    public code: "invalid" | "not_found" | "forbidden" | "mile_full" | "song_taken" | "closed" | "limit" | "person_limit",
     message: string,
     public status = 400,
   ) {
@@ -58,6 +58,11 @@ export const addSongSchema = z.object({
   /** Shown as "from Sarah". */
   name: z.string().trim().min(1, "Add your name, so they know who picked it").max(40),
   song: songSchema,
+  /** A random id this browser keeps, so one person can't add more than their share. */
+  device: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{16,64}$/)
+    .optional(),
 });
 
 function parse<T>(schema: z.ZodType<T>, input: unknown): T {
@@ -180,6 +185,7 @@ export async function getRegistry(db: Db, raceId: string, now = new Date()) {
     open: isOpen(now),
     closesAt: ADDING_CLOSES_AT.toISOString(),
     perMile: SONGS_PER_MILE,
+    maxPerPerson: MAX_SONGS_PER_PERSON,
     total: plants.length,
     recent,
     miles: byMile(plants, (p) => ({ id: p.id, song: songOf(p), from: p.is_runner ? undefined : firstName(p.name), isRunner: p.is_runner })),
@@ -199,6 +205,7 @@ export async function getManage(db: Db, raceId: string, key: string | null, now 
     open: isOpen(now),
     closesAt: ADDING_CLOSES_AT.toISOString(),
     perMile: SONGS_PER_MILE,
+    maxPerPerson: MAX_SONGS_PER_PERSON,
     total: plants.length,
     milesWithSongs: new Set(plants.map((p) => p.mile)).size,
     miles: byMile(plants, (p) => ({
@@ -241,6 +248,22 @@ export async function addSong(db: Db, raceId: string, input: unknown, now = new 
   const race = await loadRace(db, raceId);
   if (!isOpen(now)) throw new AppError("closed", "Adding songs is closed. The race is about to start!", 403);
 
+  // One person, up to MAX_SONGS_PER_PERSON songs: counted by device, or by name when there's no device.
+  // Removing one of your songs frees a spot. The runner's own picks don't count.
+  const device = data.device ? hashKey(data.device) : null;
+  const [{ n }] = await db.query<{ n: number }>(
+    device
+      ? "select count(*)::int as n from plants where race_id = $1 and not is_runner and device_hash = $2"
+      : "select count(*)::int as n from plants where race_id = $1 and not is_runner and lower(trim(name)) = lower($2)",
+    [raceId, device ?? data.name],
+  );
+  if (n >= MAX_SONGS_PER_PERSON)
+    throw new AppError(
+      "person_limit",
+      `You've added ${MAX_SONGS_PER_PERSON} songs, the most one person can add. Thanks for helping ${race.runner_name.trim().split(/\s+/)[0]}!`,
+      409,
+    );
+
   const editKey = newKey();
   const id = newId(12);
   // Take the lowest free slot on this mile. If someone else takes it at the same moment,
@@ -252,8 +275,8 @@ export async function addSong(db: Db, raceId: string, input: unknown, now = new 
     if (slot === undefined) throw new AppError("mile_full", `${mileLabel(data.mile)} is full. Try a mile nearby!`, 409);
     try {
       await db.query(
-        `insert into plants (id, race_id, mile, slot, is_runner, name, edit_key_hash, song_key, spotify_id, uri, title, artist, art, duration_sec)
-         values ($1,$2,$3,$4,false,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+        `insert into plants (id, race_id, mile, slot, is_runner, name, edit_key_hash, song_key, spotify_id, uri, title, artist, art, duration_sec, device_hash)
+         values ($1,$2,$3,$4,false,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
         [
           id,
           raceId,
@@ -268,6 +291,7 @@ export async function addSong(db: Db, raceId: string, input: unknown, now = new 
           data.song.artist,
           data.song.art ?? null,
           data.song.durationSec ?? null,
+          device,
         ],
       );
       return { id, editKey, mile: data.mile, runnerName: race.runner_name };

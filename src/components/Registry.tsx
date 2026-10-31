@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, ApiError, type Registry as RegistryData } from "@/lib/client/api";
-import { editKeys, rememberEditKey } from "@/lib/client/keys";
+import { deviceId, editKeys, rememberEditKey } from "@/lib/client/keys";
 import { confetti } from "@/lib/confetti";
 import { COURSE_NOTES, COURSE_NOTES_CREDIT } from "@/lib/courseNotes";
 import { etaAtMile, finishEta, fmtPace, fmtTimeOfDay, MILES, mileByN, mileInSentence, mileLabel, RACE, startHhmm, waveLabel } from "@/lib/race";
@@ -13,7 +13,9 @@ import { songKey } from "@/lib/songKey";
 import { cheer, cowbell, roar, setSoundOn, soundOn, welcome } from "@/lib/sounds";
 import type { Song } from "@/lib/types";
 import { SpotifyIcon } from "./brand";
+import { wrap } from "@/lib/wrapped";
 import { Bib } from "./Bib";
+import { Wrapped } from "./Wrapped";
 import { LogoMark } from "./Logo";
 import { DragOntoAMile, FindASong, HearItOutThere } from "./HowItWorks";
 import { ChipStack } from "./ChipStack";
@@ -110,7 +112,10 @@ export function Registry() {
   }, [load]);
 
   // Watch the search box itself: once it's off screen, phones get a way back to it.
-  const searchShown = !!data?.open && data.total < MILES.length * data.perMile;
+  const searchShown =
+    !!data?.open &&
+    data.total < MILES.length * data.perMile &&
+    data.miles.reduce((n, m) => n + m.songs.filter((e) => mine[e.id]).length, 0) < data.maxPerPerson;
   useEffect(() => {
     const el = document.getElementById(SEARCH_ID);
     if (!el || typeof IntersectionObserver === "undefined") return;
@@ -194,6 +199,13 @@ export function Registry() {
       setHowto(true);
       return false;
     }
+    // Songs this device already has on the course.
+    const mineSoFar = data.miles.reduce((n, m) => n + m.songs.filter((e) => mine[e.id]).length, 0);
+    if (mineSoFar >= data.maxPerPerson) {
+      say(`You've added ${data.maxPerPerson} songs, the most one person can add. Thanks!`);
+      setHeld(null);
+      return false;
+    }
     const target = data.miles.find((m) => m.n === mile);
     if (target && target.songs.length >= data.perMile) {
       say(`${mileLabel(mile)} is full. Try a mile nearby!`);
@@ -203,7 +215,7 @@ export function Registry() {
     try {
       const res = await api<{ id: string; editKey: string }>(`/api/races/${id}/plants`, {
         method: "POST",
-        body: JSON.stringify({ mile, song, name: name.trim() }),
+        body: JSON.stringify({ mile, song, name: name.trim(), device: deviceId() }),
       });
       rememberEditKey(res.id, res.editKey);
       setMine(editKeys());
@@ -224,8 +236,11 @@ export function Registry() {
       if (from && target?.width && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         setFlight({ song, from, to: { x: target.left + target.width / 2, y: target.top + target.height / 2 }, key: res.id });
       }
-      say(`Added to ${mileLabel(mile)} · ${mileByN(mile)?.title}`, [
-        { label: "＋ Add another", onClick: () => (window.matchMedia("(min-width: 1024px)").matches ? document.getElementById(SEARCH_ID)?.focus() : toSearch()) },
+      const last = mineSoFar + 1 >= data.maxPerPerson;
+      say(`Added to ${mileLabel(mile)} · ${mileByN(mile)?.title}${last ? `. That's your ${data.maxPerPerson}! 🙌` : ""}`, [
+        ...(last
+          ? []
+          : [{ label: "＋ Add another", onClick: () => (window.matchMedia("(min-width: 1024px)").matches ? document.getElementById(SEARCH_ID)?.focus() : toSearch()) }]),
         { label: "Share", onClick: () => share(song, mile) },
         { label: "Undo", onClick: () => undo(res.id, res.editKey, song) },
       ]);
@@ -235,7 +250,7 @@ export function Registry() {
     } catch (e) {
       const ae = e instanceof ApiError ? e : null;
       say(ae?.message ?? "Couldn't add your song. Try again.");
-      if (ae?.code === "song_taken") setHeld(null);
+      if (ae?.code === "song_taken" || ae?.code === "person_limit") setHeld(null);
       if (ae?.code === "mile_full") load();
       return false;
     } finally {
@@ -287,12 +302,15 @@ export function Registry() {
   if (err) return <p className="pt-10 text-lg">{err}</p>;
   if (!data) return <p className="pt-10 text-pink/60">Loading…</p>;
   const start = new Date(data.startTime);
+  const finished = new Date(data.now) >= finishEta(start, data.paceSec);
   const eta = (n: number) => fmtTimeOfDay(etaAtMile(start, data.paceSec, n));
 
   const runner = first(data.runnerName);
   const withRoom = data.miles.filter((m) => m.songs.length < data.perMile).length;
   const capacity = MILES.length * data.perMile;
   const myCount = data.miles.reduce((n, m) => n + m.songs.filter((e) => mine[e.id]).length, 0);
+  // This device has added as many songs as one person can.
+  const atLimit = myCount >= data.maxPerPerson;
   // Miles that most need a song: empty ones first (landmarks before the rest), then the emptiest with room.
   // Only once the course is nearly full, when finding a mile with room gets hard.
   const left = capacity - data.total;
@@ -311,11 +329,18 @@ export function Registry() {
       Search for a song, drag it onto a mile, and {runner} hears it right there on race day.
       <span className="hidden lg:inline">
         {" "}
-        Add as many as you like: each mile holds {data.perMile}, first come, first served.
+        Add up to {data.maxPerPerson} songs: each mile holds {data.perMile}, first come, first served.
       </span>
     </>
   ) : (
-    <>Adding songs is closed. {runner} is heading to the start! Here&apos;s the soundtrack everyone built.</>
+    // Race day, by the server's clock: before the start, out on the course, then done.
+    <>
+      {new Date(data.now) < start
+        ? `Adding songs is closed. ${runner} is heading to the start! Here's the soundtrack everyone built.`
+        : !finished
+          ? `${runner} is out on the course right now, with the soundtrack everyone built.`
+          : `${runner} ran the NYC Marathon to the soundtrack you all built. Here's the recap.`}
+    </>
   );
   const progress = (
     <div className="max-w-xl">
@@ -344,23 +369,29 @@ export function Registry() {
   );
   const stats = (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[11px]">
-      <span className="flex items-center gap-2" title="This map updates on its own">
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-mint opacity-60" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-mint" />
+      {data.open && (
+        <span className="flex items-center gap-2" title="This map updates on its own">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-mint opacity-60" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-mint" />
+          </span>
+          LIVE
         </span>
-        LIVE
-      </span>
+      )}
       <span>
         {data.total} {data.total === 1 ? "song" : "songs"} on the course
       </span>
-      <span>
-        {withRoom} of {MILES.length} miles with room
-      </span>
+      {data.open && (
+        <span>
+          {withRoom} of {MILES.length} miles with room
+        </span>
+      )}
       {data.open && <Countdown closesAt={data.closesAt} offset={offset} />}
-      <button className="underline underline-offset-4 hover:text-chalk" onClick={() => setHowto(true)}>
-        How it works
-      </button>
+      {data.open && (
+        <button className="underline underline-offset-4 hover:text-chalk" onClick={() => setHowto(true)}>
+          How it works
+        </button>
+      )}
       <button
         className="underline underline-offset-4 hover:text-chalk"
         aria-pressed={sound}
@@ -396,11 +427,12 @@ export function Registry() {
         <div className="flex items-center gap-4">
           <div className="shrink-0 lg:hidden">{bib("xs", "-rotate-[3deg]")}</div>
           <h1 className="font-display text-[clamp(1.9rem,3.6vw,2.9rem)] font-extrabold leading-[1] tracking-tight [text-wrap:balance]">
-            Help {runner} soundtrack his NYC Marathon
+            {data.open ? `Help ${runner} soundtrack his NYC Marathon` : `${runner}'s NYC Marathon soundtrack`}
           </h1>
         </div>
         <p className="max-w-2xl text-[13px] leading-snug text-blush lg:text-[15px] lg:leading-relaxed">{intro}</p>
-        <div className="hidden lg:block">{raceLine}</div>
+        {/* Start, finish and live tracking: until the race is over. */}
+        {!finished && <div className="hidden lg:block">{raceLine}</div>}
         {progress}
         {stats}
         {ticker}
@@ -413,6 +445,8 @@ export function Registry() {
     // Room at the bottom on phones for the floating "Add a song" bar.
     <div className="space-y-8 pb-20 pt-2 lg:pb-0">
       {hero}
+      {/* Once adding closes: a recap of everything everyone added. */}
+      {!data.open && <Wrapped stats={wrap(data.miles, data.runnerName, data.paceSec)} runner={runner} label="Race recap · wrapped" />}
 
       <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
         <div ref={mapRef} className="panel order-2 scroll-mt-2 overflow-hidden">
@@ -438,6 +472,14 @@ export function Registry() {
                 {myCount ? `, including your ${myCount} ${myCount === 1 ? "pick" : "picks"}` : ""}.
               </p>
             </div>
+          ) : data.open && atLimit ? (
+            <div>
+              <h2 className="font-display text-2xl font-bold">That&apos;s your {data.maxPerPerson} 🙌</h2>
+              <p className="mt-1 text-sm text-blush">
+                You&apos;ve added {myCount} songs, the most one person can add, so everyone gets a turn. Thanks for building {runner}&apos;s
+                soundtrack! To swap one, tap its mile, remove it, and add another.
+              </p>
+            </div>
           ) : data.open ? (
             <>
               <div>
@@ -446,10 +488,10 @@ export function Registry() {
                   {myCount ? (
                     <>
                       You&apos;ve added <strong className="text-chalk">{myCount}</strong> {myCount === 1 ? "song" : "songs"}
-                      {myCount >= 3 ? " 🔥" : ""}. Keep them coming: add as many as you like.
+                      {myCount >= 3 ? " 🔥" : ""}. Keep them coming: you can add {data.maxPerPerson - myCount} more.
                     </>
                   ) : (
-                    "Pick one, then drag it onto the map. Add as many as you like."
+                    `Pick one, then drag it onto the map. Add up to ${data.maxPerPerson}.`
                   )}
                 </p>
               </div>
@@ -519,6 +561,8 @@ export function Registry() {
           perMile={data.perMile}
           runner={runner}
           isOpen={data.open}
+          atLimit={atLimit}
+          maxPerPerson={data.maxPerPerson}
           held={held}
           mine={mine}
           busy={busy}
@@ -531,7 +575,8 @@ export function Registry() {
       )}
 
       <Modal
-        open={howto}
+        // Once adding closes there's nothing to set up: friends go straight to the recap.
+        open={howto && data.open}
         onClose={closeHowto}
         title="How it works"
         narrow
@@ -569,7 +614,7 @@ export function Registry() {
               [
                 `${runner} hears it out there`,
                 "Right at that mile, on race day.",
-                `Every song goes into ${runner}'s race-day playlist in course order. Add as many as you like: there are ${capacity} spots to fill.`,
+                `Every song goes into ${runner}'s race-day playlist in course order. Add up to ${data.maxPerPerson} of your own: there are ${capacity} spots to fill.`,
                 <HearItOutThere key="3" />,
               ],
             ] as const
@@ -631,7 +676,7 @@ export function Registry() {
 
       <Toast message={toast} actions={toastActions} onDone={() => say(null)} />
       <SearchBar
-        show={phone && data.open && data.total < capacity && !held && !panelVisible && !open && !howto && !toast && !sheet}
+        show={phone && data.open && data.total < capacity && !atLimit && !held && !panelVisible && !open && !howto && !toast && !sheet}
         label={myCount ? "Add another song" : "Add a song"}
         left={capacity - data.total}
         onClick={openSheet}
@@ -921,6 +966,8 @@ function MileSheet({
   perMile,
   runner,
   isOpen,
+  atLimit,
+  maxPerPerson,
   held,
   mine,
   busy,
@@ -934,6 +981,9 @@ function MileSheet({
   perMile: number;
   runner: string;
   isOpen: boolean;
+  /** This device has added as many songs as one person can. */
+  atLimit: boolean;
+  maxPerPerson: number;
   held: Song | null;
   mine: Record<string, string>;
   busy: boolean;
@@ -1011,7 +1061,11 @@ function MileSheet({
 
       {isOpen && room > 0 && (
         <div className="mt-6 border-t border-pink/15 pt-5">
-          {held ? (
+          {atLimit ? (
+            <p className="text-sm text-blush">
+              You&apos;ve added {maxPerPerson} songs, the most one person can add. To swap one in here, remove one of yours first.
+            </p>
+          ) : held ? (
             <button className="btn w-full bg-pink px-6 py-3.5 text-base" disabled={busy} onClick={() => onAdd(held)}>
               Add “{held.title}” here
             </button>
